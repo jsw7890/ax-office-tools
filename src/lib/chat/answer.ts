@@ -88,8 +88,13 @@ export function answerFromChunks(question: string, chunks: ProvidedChunk[]): Dra
     for (const token of document.tokens) frequency.set(token, (frequency.get(token) ?? 0) + 1);
   }
 
+  const asksAboutMinors = /연소|미성년|18세|15세/.test(normalized);
   const ranked = documents
     .map(({ chunk, tokens }) => {
+      const minorOnly = /15세 이상 18세 미만/.test(chunk.content) || chunk.articleNo === "제69조";
+      if (minorOnly && !asksAboutMinors) {
+        return { chunk, score: 0, relevant: false };
+      }
       let headingScore = 0;
       if (includesTerm(normalized, chunk.articleNo)) headingScore += 10;
       if (includesTerm(normalized, chunk.heading.replace(/\s+/g, ""))) headingScore += 6;

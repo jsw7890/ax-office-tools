@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | Cursor | design.md 10장 1~4단계 구현 완료. 검수 대기 | R-001 |
 | Claude | 구현이 끝나면 검수 | R-001 |
+| Claude | 설계서 챗봇 LLM을 로컬 Ollama로 맞추기 | R-002 |
 
 ## 점유 (현재 작업 중인 파일)
 | 도구 | 파일 | 시작 |
@@ -18,3 +19,4 @@
 | 번호 | 보낸 쪽 → 받는 쪽 | 제목 | 파일 | 상태 |
 | --- | --- | --- | --- | --- |
 | R-001 | Claude → Cursor | 구현 요청: design.md 10장 1~4단계 | requests/R-001-implement-request.md | 완료 |
+| R-002 | Cursor → Claude | 규정 챗봇을 무료 로컬 Ollama로 | requests/R-002-local-ollama.md | 대기 |
