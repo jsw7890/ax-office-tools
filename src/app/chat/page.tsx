@@ -8,7 +8,21 @@ import { DISCLAIMER } from "@/lib/labels";
 type Citation = { docTitle: string; articleNo: string; heading: string; baseDate: string; sourceUrl: string };
 type LlmStatus = { available: boolean; used?: boolean; model: string; mode: "local_llm" | "article_search"; detail: string };
 type Result = { answer: string; citations: Citation[]; suggestHelpdesk: boolean; llm: LlmStatus };
-type Turn = { question: string; result: Result };
+type Turn = { question: string; askedAt: string; result: Result };
+
+function formatAskedAt(when: Date): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(when);
+  const read = (type: string) => parts.find((part) => part.type === type)?.value ?? "00";
+  return `${read("year")}년 ${Number(read("month"))}월 ${Number(read("day"))}일 ${Number(read("hour"))}시 ${read("minute")}분`;
+}
 
 export default function ChatPage() {
   const [question, setQuestion] = useState("");
@@ -34,7 +48,7 @@ export default function ChatPage() {
     setError("");
     try {
       const result = await api<Result>("/api/chat", { method: "POST", body: JSON.stringify({ question }) });
-      setTurns((prev) => [...prev, { question, result }]);
+      setTurns((prev) => [{ question, askedAt: formatAskedAt(new Date()), result }, ...prev]);
       setStatus(result.llm);
       setQuestion("");
     } catch (caught) {
@@ -58,8 +72,9 @@ export default function ChatPage() {
         {error && <p className="error" role="alert">{error}</p>}
       </section>
       {turns.map((turn, index) => (
-        <section className="panel" key={`${turn.question}-${index}`}>
+        <section className="panel" key={`${turn.askedAt}-${turn.question}-${index}`}>
           <h2>질문</h2>
+          <p className="muted">{turn.askedAt}</p>
           <p>{turn.question}</p>
           <h2>답변</h2>
           <p className="muted">{turn.result.llm.used ? `로컬 LLM 사용 (${turn.result.llm.model})` : turn.result.citations.length ? "조문 검색으로 답함" : "업무 처리"}</p>
