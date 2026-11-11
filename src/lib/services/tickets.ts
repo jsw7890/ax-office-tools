@@ -86,6 +86,19 @@ export async function createTicket(
   const urgency = oneOf(input.urgency, URGENCIES, "긴급도");
   const db = await getDb();
   return run(async () => {
+    const recent = await db.withUser(userId, (sql) =>
+      sql(
+        `${TICKET_SELECT}
+         where t.requester_id = auth.uid()
+           and t.title = $1
+           and t.description = $2
+           and t.created_at > now() - interval '20 seconds'
+         order by t.created_at desc
+         limit 1`,
+        [title, description],
+      ),
+    );
+    if (recent[0]) return asTicket(recent[0]);
     const inserted = await db.withUser(userId, (sql) =>
       sql(
         `insert into tickets (requester_id, category, title, description, urgency, status)
@@ -96,6 +109,34 @@ export async function createTicket(
     );
     const rows = await db.withUser(userId, (sql) => sql(`${TICKET_SELECT} where t.id = $1`, [inserted[0]?.id]));
     return asTicket(rows[0]);
+  });
+}
+
+export async function collapseDuplicateTickets(actorId: string): Promise<number> {
+  const db = await getDb();
+  return run(async () => {
+    const profile = await db.withUser(actorId, (sql) => sql("select role from profiles where id = auth.uid()"));
+    if (profile[0]?.role !== "admin") throw new AppError(403, "관리자만 중복 문의를 정리할 수 있습니다.", "forbidden");
+    const extras = await db.asOwner((sql) =>
+      sql(
+        `with ranked as (
+           select id,
+             row_number() over (
+               partition by requester_id, title
+               order by case status when 'done' then 0 when 'in_progress' then 1 else 2 end, created_at
+             ) as rn
+           from tickets
+         )
+         select id from ranked where rn > 1`,
+      ),
+    );
+    for (const row of extras) {
+      const id = String(row.id);
+      await db.asOwner((sql) => sql("delete from ticket_comments where ticket_id = $1", [id]));
+      await db.asOwner((sql) => sql("delete from notifications where href = $1", [`/helpdesk/${id}`]));
+      await db.asOwner((sql) => sql("delete from tickets where id = $1", [id]));
+    }
+    return extras.length;
   });
 }
 

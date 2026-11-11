@@ -29,6 +29,7 @@ export default function ChatPage() {
   const [turns, setTurns] = useState<Turn[]>([]);
   const [error, setError] = useState("");
   const [status, setStatus] = useState<LlmStatus | null>(null);
+  const [sending, setSending] = useState(false);
 
   useEffect(() => {
     api<LlmStatus>("/api/chat/status")
@@ -45,14 +46,20 @@ export default function ChatPage() {
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (sending) return;
+    const text = question.trim();
+    if (!text) return;
+    setSending(true);
     setError("");
     try {
-      const result = await api<Result>("/api/chat", { method: "POST", body: JSON.stringify({ question }) });
-      setTurns((prev) => [{ question, askedAt: formatAskedAt(new Date()), result }, ...prev]);
+      const result = await api<Result>("/api/chat", { method: "POST", body: JSON.stringify({ question: text }) });
+      setTurns((prev) => [{ question: text, askedAt: formatAskedAt(new Date()), result }, ...prev]);
       setStatus(result.llm);
       setQuestion("");
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "답하지 못했습니다.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -66,8 +73,21 @@ export default function ChatPage() {
         <p className="notice">{notice}</p>
         <p className="muted">예: 오늘 2시 빈 회의실 예약해줘 인원은 4명이야. 회의실 이름 없이 빈 방을 잡습니다. 내역·10분 전 알림, IT 문의도 됩니다. 유료 AI는 쓰지 않습니다. 하루 20회까지입니다.</p>
         <form className="form" onSubmit={submit}>
-          <label>질문<textarea value={question} onChange={(event) => setQuestion(event.target.value)} required maxLength={500} rows={4} /></label>
-          <button type="submit">보내기</button>
+          <label>질문<textarea
+            value={question}
+            onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.shiftKey) {
+                event.preventDefault();
+                if (!sending) event.currentTarget.form?.requestSubmit();
+              }
+            }}
+            required
+            maxLength={500}
+            rows={4}
+            disabled={sending}
+          /></label>
+          <button type="submit" disabled={sending}>{sending ? "보내는 중" : "보내기"}</button>
         </form>
         {error && <p className="error" role="alert">{error}</p>}
       </section>

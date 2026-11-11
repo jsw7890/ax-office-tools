@@ -9,9 +9,12 @@ export default function NewTicketPage() {
   const [description, setDescription] = useState("");
   const [urgency, setUrgency] = useState("normal");
   const [error, setError] = useState("");
+  const [sending, setSending] = useState(false);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
+    if (sending) return;
+    setSending(true);
     setError("");
     try {
       const result = await api<{ ticket: { id: string } }>("/api/tickets", {
@@ -21,6 +24,7 @@ export default function NewTicketPage() {
       location.href = `/helpdesk/${result.ticket.id}`;
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "등록하지 못했습니다.");
+      setSending(false);
     }
   }
 
@@ -44,7 +48,7 @@ export default function NewTicketPage() {
         </select>
       </label>
       {error && <p className="error" role="alert">{error}</p>}
-      <button type="submit">접수하기</button>
+      <button type="submit" disabled={sending}>{sending ? "접수 중" : "접수하기"}</button>
     </form>
   );
 }

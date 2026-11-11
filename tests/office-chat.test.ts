@@ -60,6 +60,14 @@ describe("업무 챗봇", { concurrency: 1 }, () => {
     assert.ok(tickets.some((item) => item.title.includes("모니터")));
   });
 
+  test("같은 IT 문의를 연속으로 보내도 한 건만 등록된다", async () => {
+    const text = "키보드가 작동하지 않아요. IT 문의 등록해줘";
+    await askQuestion(staffId, text);
+    await askQuestion(staffId, text);
+    const tickets = await listMyTickets(staffId);
+    assert.equal(tickets.filter((item) => item.title.includes("키보드")).length, 1);
+  });
+
   test("관리자 답변과 상태 변경이 알림과 저장소에 남는다", async () => {
     const created = await askQuestion(staffId, "프린터 고장입니다. 헬프데스크 문의 등록");
     const tickets = await listMyTickets(staffId);
