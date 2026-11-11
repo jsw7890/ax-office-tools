@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/bootstrap";
 import { AppError, mapDbError } from "@/lib/errors";
+import { statusLabel } from "@/lib/labels";
 import { oneOf, requiredText, requiredUuid } from "@/lib/validate";
 
 const CATEGORIES = ["pc", "account", "printer_network", "etc"] as const;
@@ -158,7 +159,17 @@ export async function changeTicketStatus(userId: string, ticketId: unknown, stat
     );
     if (!rows[0]) throw new AppError(403, "문의 상태를 바꿀 수 없습니다.", "forbidden");
     const loaded = await db.withUser(userId, (sql) => sql(`${TICKET_SELECT} where t.id = $1`, [id]));
-    return asTicket(loaded[0]);
+    const ticket = asTicket(loaded[0]);
+    if (ticket.requesterId !== userId) {
+      await db.withUser(userId, (sql) =>
+        sql(
+          `insert into notifications (user_id, kind, title, body, href)
+           values ($1, 'helpdesk_status', $2, $3, $4)`,
+          [ticket.requesterId, "IT helpdesk 상태가 바뀌었습니다", `${ticket.title} → ${statusLabel[ticket.status]}`, `/helpdesk/${ticket.id}`],
+        ),
+      );
+    }
+    return ticket;
   });
 }
 
@@ -175,7 +186,18 @@ export async function addComment(userId: string, ticketId: unknown, bodyInput: u
         [id, body],
       ),
     );
-    const author = await db.withUser(userId, (sql) => sql("select name from profiles where id = auth.uid()"));
-    return asComment({ ...rows[0], author_name: author[0]?.name ?? "" });
+    const author = await db.withUser(userId, (sql) => sql("select name, role from profiles where id = auth.uid()"));
+    const ticket = await db.withUser(userId, (sql) => sql("select requester_id, title from tickets where id = $1", [id]));
+    const comment = asComment({ ...rows[0], author_name: author[0]?.name ?? "" });
+    if (author[0]?.role === "admin" && ticket[0] && String(ticket[0].requester_id) !== userId) {
+      await db.withUser(userId, (sql) =>
+        sql(
+          `insert into notifications (user_id, kind, title, body, href)
+           values ($1, 'helpdesk_reply', $2, $3, $4)`,
+          [String(ticket[0].requester_id), "IT helpdesk 답변이 달렸습니다", String(ticket[0].title ?? "문의"), `/helpdesk/${id}`],
+        ),
+      );
+    }
+    return comment;
   });
 }

@@ -156,6 +156,23 @@ button.slot {
 
 .muted { color: #5d6672; font-size: 0.92rem; }
 
+.alerts { position: relative; }
+
+.alert-list {
+  position: absolute;
+  right: 0;
+  top: 2.4rem;
+  z-index: 5;
+  width: 280px;
+  background: white;
+  color: #1c2430;
+  border: 1px solid #c9c2b2;
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  list-style: none;
+  margin: 0;
+}
+
 .answer { white-space: pre-wrap; }
 
 footer.note { color: #5d6672; font-size: 0.85rem; margin-top: 2rem; }

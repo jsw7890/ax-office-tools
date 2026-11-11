@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { Alerts } from "@/components/Alerts";
 import { api } from "@/lib/browser";
 
 type User = { name: string; role: "staff" | "admin" };
@@ -29,6 +30,7 @@ export function NavBar() {
         <div>
           {ready && user ? (
             <>
+              <Alerts />
               <span>{user.name} · {user.role === "admin" ? "관리자" : "직원"}</span>
               <button className="secondary" type="button" onClick={logout}>로그아웃</button>
             </>
@@ -43,13 +45,14 @@ export function NavBar() {
             <Link href="/helpdesk">IT helpdesk</Link>
             <Link href="/admin/rooms">회의실 관리</Link>
             <Link href="/admin/tickets">IT helpdesk 현황</Link>
+            <Link href="/chat">챗봇</Link>
           </>
         ) : ready ? (
           <>
             <Link href="/rooms">회의실</Link>
             <Link href="/rooms/mine">내 예약</Link>
             <Link href="/helpdesk">IT helpdesk</Link>
-            <Link href="/chat">규정 챗봇</Link>
+            <Link href="/chat">챗봇</Link>
           </>
         ) : null}
       </div>

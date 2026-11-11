@@ -122,6 +122,37 @@ export function attachCitation(text: string, draft: DraftAnswer): string {
   return `${text.trim()}\n\n${stamp}`;
 }
 
+export async function polishOfficeWithLocalLlm(question: string, fact: string, model: string): Promise<string | null> {
+  const response = await ollamaFetch(
+    "/api/chat",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        model,
+        stream: false,
+        options: { num_ctx: 1024, num_predict: 180, temperature: 0.1 },
+        messages: [
+          {
+            role: "system",
+            content:
+              "너는 사내 업무 챗봇이다. 주어진 처리 결과만 한국어로 짧게 말한다. 없는 방·시간·상태를 만들지 않는다. 숫자와 이름은 그대로 둔다.",
+          },
+          { role: "user", content: `질문:\n${question}\n\n처리 결과:\n${fact}\n\n위 결과만 보고 답하세요.` },
+        ],
+      }),
+    },
+    20_000,
+  );
+  if (!response?.ok) return null;
+  const payload = (await response.json().catch(() => null)) as { message?: { content?: string } } | null;
+  const text = payload?.message?.content?.trim() ?? "";
+  if (text.length < 4) return null;
+  const numbers = fact.match(/\d+/g) ?? [];
+  if (numbers.some((value) => !text.includes(value) && !fact.includes(value))) return null;
+  return text;
+}
+
 export async function polishWithLocalLlm(
   question: string,
   draft: DraftAnswer,

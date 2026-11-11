@@ -49,6 +49,11 @@ export async function createDatabase(dataDir?: string): Promise<OfficeDatabase> 
     await execFile(db, path.join(localDir, "00_auth_stub.sql"));
     await applyMigrations(db);
     await execFile(db, path.join(localDir, "10_sample_users.sql"));
+  } else {
+    const extras = await db.query<{ name: string | null }>("select to_regclass('public.notifications') as name");
+    if (!extras.rows[0]?.name) {
+      await execFile(db, path.join(process.cwd(), "supabase", "migrations", "0004_office_chat.sql"));
+    }
   }
 
   return {
