@@ -5,17 +5,11 @@
 
 ## 0. 시작하기 전에
 
-**현재 상태: 1단계 시작(2026-11-26 14:47 JSW님 지시).** docs/design.md는 v0.3으로 고쳤고 요청은 docs/handoff/requests/R-003-chatbot-stage1_Claude.md 이다. 이 가이드의 범위는 1단계(3장)까지다. 2단계 이후는 Claude가 설계를 먼저 고치고 새 요청 번호로 보낸다.
+**현재 상태: 1단계 완료(R-003, GitHub main 19b2679), 2단계 시작(2026-11-26 15:54 JSW님 지시).** docs/design.md는 v0.4(7.4·7.5 혼합 검색)이고 요청은 docs/handoff/requests/R-004-chatbot-stage2_Claude.md 이다. 2단계 작업은 이 가이드 4장이다. 3단계 이후는 Claude가 설계를 먼저 고치고 새 요청 번호로 보낸다.
 
-진행 순서:
-1. (완료) JSW님이 Claude에게 "1단계 시작"을 지시했다.
-2. (완료) Claude가 design.md v0.3, R-003, INBOX 줄을 만들고 이 가이드를 docs/handoff/requests/에 넣었다.
-3. JSW님이 Cursor에 "INBOX의 R-003 처리해"라고 지시한다.
+기준 코드 (2026-11-26 확인): GitHub main = 로컬 main = 19b2679. 그 위에 Claude가 바꾼 문서(design.md v0.4, INBOX.md, R-004, 이 가이드)는 커밋하지 않은 상태다.
 
-기준 코드 (2026-11-26 확인):
-- 로컬: C:\Users\hitea\Desktop\Cursor\ax-office-tools, main = 76b0903 (설계 v0.2 문서 커밋, GitHub에 아직 없음). 그 위에 Claude가 바꾼 문서 3개(design.md v0.3, INBOX.md, R-003·이 가이드)는 커밋하지 않은 상태다
-- GitHub: https://github.com/jsw7890/ax-office-tools , main = 7e3c1d1 (v0.2.2)
-- src, tests, supabase, data, scripts, .env.example의 78개 파일은 두 곳이 같다. 비교한 문서 중 다른 것은 docs/design.md, docs/handoff/INBOX.md, requests/R-002-local-ollama.md이다.
+(1단계 때의 기준 코드: 로컬 76b0903, GitHub 7e3c1d1. 둘 다 이제 main에 포함됨)
 
 작업 전에 읽을 파일: docs/RULES.md → docs/design.md → docs/handoff/INBOX.md → 이 가이드.
 
@@ -278,7 +272,9 @@ export type PendingAction =
 
 ## 4. 2단계 — 벡터 + 키워드 하이브리드 검색
 
-시작 조건: 1단계 검수 통과, design.md 반영, JSW님 승인 후 `ollama pull bge-m3`(1.2GB), `ollama pull qwen3-embedding:0.6b`(639MB). 둘 다 1024차원.
+시작 조건: 1단계 검수 통과(완료), design.md v0.4 반영(완료). 모델은 bge-m3 하나만 받는다: `ollama pull bge-m3`(1.2GB, 1024차원) — 2026-11-26 15:58 JSW님 승인. qwen3-embedding:0.6b는 받지 않는다(웹 조사로 bge-m3 선정, design.md 2장). 승인 기록은 R-004 '모델 내려받기' 줄. 승인 전에는 1)~7) 코드와 가짜 벡터 테스트까지만 하고 실제 임베딩·평가는 멈춘다.
+
+시작 전: `.data` 폴더를 프로젝트 폴더 밖(예: C:\\Users\\hitea\\Desktop\\Cursor\\ax-office-tools-data-backup-20261126)에 복사해 둔다. 지우지 않는다.
 
 1) 설치. PGlite 0.5.15와 맞는 버전을 고정한다(0.1.0은 PGlite 0.6.0용).
 
@@ -355,6 +351,7 @@ import { getDb } from "../src/lib/bootstrap";
 const MODEL = process.env.EMBED_MODEL ?? "bge-m3";
 
 async function embed(input: string[]): Promise<number[][]> {
+  // 실제 구현은 src/lib/chat/ollama.ts의 loopback 검사·시간 제한을 재사용한다(설계 7.5). 아래 주소 직접 호출은 시험용 예시다.
   const res = await fetch("http://127.0.0.1:11434/api/embed", {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -427,7 +424,7 @@ limit 3;
 - Ollama 꺼짐, mock, 임베딩 없음이면 지금의 키워드 검색으로 돌아간다.
 - 하이브리드에서는 단어 목록(REGULATION_CUE) 대신 유사도 기준값으로 거절한다. 값은 평가 질문으로 정하고 기록한다.
 - 연소자 조문 제외 규칙은 하이브리드 결과에도 적용한다.
-- npm run eval에 하이브리드 모드를 추가해 상위 3개 정답을 기록한다. 두 모델을 비교해 하나를 고른다. qwen3-embedding의 질문 지시문 권장은 2차 자료이므로 모델 페이지에서 확인 후 적용한다.
+- npm run eval에 하이브리드 모드를 추가해 키워드 검색과 나란히 상위 1개·3개 정답을 기록한다. 모델은 bge-m3만 쓴다(질문에 지시문 불필요).
 
 완료 기준: 일상어 질문 상위 3개 정답 20/24(80%) 이상, 조문 표현 6/6 유지, 범위 밖 4개 거절. 이후 Claude가 별도 질문으로 검수한다. 수치가 미달이면 있는 그대로 보고한다.
 

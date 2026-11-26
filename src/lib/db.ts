@@ -1,5 +1,6 @@
 import { PGlite, type PGliteInterface, type Results, type Transaction } from "@electric-sql/pglite";
 import { btree_gist } from "@electric-sql/pglite/contrib/btree_gist";
+import { vector } from "@electric-sql/pglite-pgvector";
 import { readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { AppError } from "@/lib/errors";
@@ -39,7 +40,7 @@ async function applyMigrations(db: PGliteInterface) {
 }
 
 export async function createDatabase(dataDir?: string): Promise<OfficeDatabase> {
-  const db = await PGlite.create(dataDir ?? "memory://", { extensions: { btree_gist } });
+  const db = await PGlite.create(dataDir ?? "memory://", { extensions: { btree_gist, vector } });
   await db.waitReady;
   await db.exec("set time zone 'Asia/Seoul'");
 
@@ -53,6 +54,10 @@ export async function createDatabase(dataDir?: string): Promise<OfficeDatabase> 
     const extras = await db.query<{ name: string | null }>("select to_regclass('public.notifications') as name");
     if (!extras.rows[0]?.name) {
       await execFile(db, path.join(process.cwd(), "supabase", "migrations", "0004_office_chat.sql"));
+    }
+    const vectors = await db.query<{ name: string | null }>("select to_regclass('public.regulation_embeddings') as name");
+    if (!vectors.rows[0]?.name) {
+      await execFile(db, path.join(process.cwd(), "supabase", "migrations", "0005_regulation_vectors.sql"));
     }
   }
 

@@ -76,7 +76,9 @@ function excerpt(content: string): string {
   return `${compact.slice(0, 700).trim()}…`;
 }
 
-export function answerFromChunks(question: string, chunks: ProvidedChunk[]): DraftAnswer {
+export type KeywordHit = { id: string; articleNo: string; score: number; chunk: ProvidedChunk };
+
+function scoreChunks(question: string, chunks: ProvidedChunk[]) {
   const normalized = question.replace(/\s+/g, " ").trim();
   const questionTokens = new Set(tokensOf(normalized));
   const documents = chunks.map((chunk) => ({
@@ -87,8 +89,7 @@ export function answerFromChunks(question: string, chunks: ProvidedChunk[]): Dra
   for (const document of documents) {
     for (const token of document.tokens) frequency.set(token, (frequency.get(token) ?? 0) + 1);
   }
-
-  const asksAboutMinors = /연소|미성년|18세|15세/.test(normalized);
+  const asksAboutMinors = /연소|미성년|18세|15세|고등|청소년/.test(normalized);
   const ranked = documents
     .map(({ chunk, tokens }) => {
       const minorOnly = /15세 이상 18세 미만/.test(chunk.content) || chunk.articleNo === "제69조";
@@ -111,6 +112,16 @@ export function answerFromChunks(question: string, chunks: ProvidedChunk[]): Dra
     })
     .filter((item) => item.relevant)
     .sort((a, b) => b.score - a.score || a.chunk.articleNo.localeCompare(b.chunk.articleNo, "ko"));
+  return { normalized, ranked };
+}
+
+export function rankKeywordHits(question: string, chunks: ProvidedChunk[]): KeywordHit[] {
+  const { ranked } = scoreChunks(question, chunks);
+  return ranked.map(({ chunk, score }) => ({ id: chunk.id, articleNo: chunk.articleNo, score, chunk }));
+}
+
+export function answerFromChunks(question: string, chunks: ProvidedChunk[]): DraftAnswer {
+  const { normalized, ranked } = scoreChunks(question, chunks);
 
   const best = ranked[0]?.score ?? 0;
   const picked = ranked.filter((item) => item.score >= best - 2).slice(0, 2);
