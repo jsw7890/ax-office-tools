@@ -95,6 +95,12 @@ describe("업무 챗봇", { concurrency: 1 }, () => {
     assert.equal(after.find((row) => row.id === saved.id)?.status, "cancelled");
   });
 
+  test("지난 날짜 예약은 제안하지 않고 안내한다", async () => {
+    const result = await askQuestion(staffId, "2020-01-06 15시 회의실 A 예약해줘");
+    assert.match(result.answer, /지난 날짜/);
+    assert.equal((result.pendingActions ?? []).length, 0);
+  });
+
   test("10분 전 알림을 켠다", async () => {
     const result = await askQuestion(staffId, "회의 예약 10분 전 알람 켜줘");
     assert.match(result.answer, /10분 전 알림을 켰습니다/);
@@ -183,6 +189,41 @@ describe("업무 분류 날짜 (고정 2026-11-26)", () => {
         },
       },
       {
+        q: "다음 주 월요일 3시 회의실 예약해줘",
+        check: (p) => {
+          assert.equal(p.action, "book_room");
+          if (p.action === "book_room") assert.equal(p.date, "2026-11-30");
+        },
+      },
+      {
+        q: "다음 주 수요일 3시 회의실 예약해줘",
+        check: (p) => {
+          assert.equal(p.action, "book_room");
+          if (p.action === "book_room") assert.equal(p.date, "2026-12-02");
+        },
+      },
+      {
+        q: "다음 주 일요일 3시 회의실 예약해줘",
+        check: (p) => {
+          assert.equal(p.action, "book_room");
+          if (p.action === "book_room") assert.equal(p.date, "2026-12-06");
+        },
+      },
+      {
+        q: "이번 주 화요일 3시 회의실 예약해줘",
+        check: (p) => {
+          assert.equal(p.action, "book_room");
+          if (p.action === "book_room") assert.equal(p.date, "2026-11-24");
+        },
+      },
+      {
+        q: "이번 주 토요일 3시 회의실 예약해줘",
+        check: (p) => {
+          assert.equal(p.action, "book_room");
+          if (p.action === "book_room") assert.equal(p.date, "2026-11-28");
+        },
+      },
+      {
         q: "11/30 3시 회의실 예약해줘",
         check: (p) => {
           assert.equal(p.action, "book_room");
@@ -245,6 +286,10 @@ describe("업무 분류 날짜 (고정 2026-11-26)", () => {
       },
       {
         q: "모니터가 안 켜져요",
+        check: (p) => assert.equal(p.action, "create_ticket"),
+      },
+      {
+        q: "계정 잠겼어요 풀어주세요",
         check: (p) => assert.equal(p.action, "create_ticket"),
       },
     ];

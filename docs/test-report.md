@@ -3,11 +3,26 @@
 브랜치: `cursor/chatbot-stage1-efc5`  
 검증: Grok/Composer(tester). 제품 `src/` 미변경. `tests/` 미변경.
 
+## R-003 재검증 — D1·D2 요일 (PIN 2026-11-26 목)
+
+기준: 주간 **월–일**, `parseOfficeIntent(..., PIN)` (`tests/office-chat.test.ts` `합격 표`, 23문항 일괄).
+
+| 결함 | 입력 | 기대 `date` | `합격 표` |
+| --- | --- | --- | --- |
+| D1 | 다음 주 월요일 | 2026-11-30 | 통과 |
+| D1 | 다음 주 수요일 | 2026-12-02 | 통과 |
+| D1 | 다음 주 일요일 | 2026-12-06 | 통과 |
+| — | 다음 주 금요일 (기존) | 2026-12-04 | 통과 |
+| D2 | 이번 주 화요일 (과거) | 2026-11-24 | 통과 (파싱) |
+| D2 | 이번 주 토요일 | 2026-11-28 | 통과 |
+
+D2 과거일 **핸들러**: `이번 주 화요일 3시 회의실 예약해줘` → 답에 `지난 날짜`, `pendingActions` 0건. 같은 분기는 `지난 날짜 예약은 제안하지 않고 안내한다`(고정일 `2020-01-06`)로 자동 테스트됨.
+
 ## 실행 명령 요약
 
 | 명령 | 결과 |
 | --- | --- |
-| `npm test` | **33 pass**, 0 fail, 8 suites, 약 60s |
+| `npm test` | **34 pass**, 0 fail, 8 suites, 약 59s |
 | `npm run eval` | 종료 코드 0 (아래 JSON) |
 | `npm run build` | 성공 (Next.js 15.5.29) |
 | `node scripts/clean-regulations.mjs` | `changed=0`, `chunks=131` |
@@ -52,7 +67,7 @@ R-003 완료 기준 중 **평가 34문항 업무 분류**는 `tests/office-chat.
 | 케이스 | 결과 |
 | --- | --- |
 | 평가 34문항 `parseOfficeIntent` | 모두 `action: none` |
-| 날짜 합격 표(기준일 2026-11-26) | 17개 입력 한 테스트에서 통과 |
+| 날짜 합격 표(기준일 2026-11-26) | 23개 입력 한 테스트에서 통과 (D1·D2 요일 5건 포함) |
 | 내일 11시 빈 회의실 예약 제안 | `pendingActions` 1건, 확인 전 DB 없음 |
 | 모레 회의실 A 예약 제안 | `createReservation` 후 저장 |
 | IT 문의 제안 | 확인 전 없음, `createTicket` 후 저장 |

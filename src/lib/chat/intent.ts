@@ -92,16 +92,10 @@ function parseWeekdayDate(text: string, today: string): string | undefined {
   if (!dayChar) return undefined;
   const target = WEEKDAY[dayChar];
   if (weekTag && /다음/.test(weekTag)) {
-    const base = addDays(today, 7);
-    return weekdayOnOrAfter(base, target);
+    return weekdayOnOrAfter(addDays(mondayOfWeek(today), 7), target);
   }
   if (weekTag && /이번/.test(weekTag)) {
-    const mon = mondayOfWeek(today);
-    for (let i = 0; i < 7; i++) {
-      const d = addDays(mon, i);
-      if (utcDayOfWeek(d) === target && d >= today) return d;
-    }
-    return addDays(today, 7);
+    return weekdayOnOrAfter(mondayOfWeek(today), target);
   }
   let d = addDays(today, 1);
   return weekdayOnOrAfter(d, target);
@@ -165,7 +159,7 @@ function officeRequestPhrase(text: string): boolean {
 }
 
 function faultPhrase(text: string): boolean {
-  return /(안\s*켜|안\s*돼|안\s*됨|안\s*됩니다|켜지지\s*않|고장|먹통|작동하지\s*않|초기화)/.test(text);
+  return /(안\s*켜|안\s*돼|안\s*됨|안\s*됩니다|켜지지\s*않|고장|먹통|작동하지\s*않|초기화|잠겼|잠김|풀어주|해제해)/.test(text);
 }
 
 function looksLikeRegulation(text: string): boolean {
@@ -272,7 +266,7 @@ export function parseOfficeIntent(question: string, today: string = seoulToday()
     };
   }
 
-  if (faultPhrase(text) && /(모니터|프린터|비밀번호|노트북|컴퓨터|와이파이|키보드|PC)/i.test(text)) {
+  if (faultPhrase(text) && /(모니터|프린터|비밀번호|노트북|컴퓨터|와이파이|키보드|PC|계정)/i.test(text)) {
     return {
       action: "create_ticket",
       category: parseCategory(text),

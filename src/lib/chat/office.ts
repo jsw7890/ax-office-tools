@@ -105,7 +105,14 @@ async function runAction(
   if (intent.action === "book_room") {
     if (!intent.date || intent.startMinutes == null || intent.endMinutes == null) {
       return {
-        answer: "예약을 넣으려면 날짜(오늘/내일)와 시작 시각을 알려 주세요. 예: 내일 11시 빈 회의실 예약해줘 인원은 4명이야",
+        answer:
+          "예약을 넣으려면 날짜와 시작 시각을 알려 주세요. 예: 모레 3시, 다음 주 금요일 오후 3시, 12월 3일 14시 회의실 예약해줘",
+        pendingActions: [],
+      };
+    }
+    if (intent.date < seoulToday()) {
+      return {
+        answer: "지난 날짜는 예약할 수 없습니다. 오늘 이후 날짜로 다시 말해 주세요.",
         pendingActions: [],
       };
     }

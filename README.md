@@ -67,7 +67,7 @@ npm run dev -- --port 3456
 npm test
 ```
 
-2026-11-26 기준으로 33개가 통과했습니다. 내용은 [docs/test-report.md](docs/test-report.md)에 있습니다.
+2026-11-26 기준으로 34개가 통과했습니다. 내용은 [docs/test-report.md](docs/test-report.md)에 있습니다.
 
 평가 질문(업무 분류·조문 검색)은 `npm run eval`로 돌릴 수 있습니다. 회의실·문의·취소는 챗봇이 제안만 하고 `/chat` 화면의 **확인** 버튼으로 저장합니다.
 
