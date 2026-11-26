@@ -36,11 +36,10 @@ export async function askQuestion(userId: string, questionInput: unknown) {
     const office = await handleOfficeQuestion(userId, question, role);
     if (office) {
       const status = await chatLlmStatus();
-      status.mode = status.available ? "local_llm" : "article_search";
+      status.mode = "article_search";
       status.used = false;
-      status.detail = status.available
-        ? `로컬 LLM(${status.model})이 켜져 있고, 이번 질문은 회의실·IT 업무로 처리했습니다.`
-        : "로컬 LLM 꺼짐 · 회의실·IT 업무는 규칙으로 처리하고, 규정은 조문 검색으로 답합니다.";
+      status.detail =
+        "회의실·IT 업무는 규칙으로 처리합니다(답을 LLM이 다시 쓰지 않습니다). 규정 질문은 조문 검색·로컬 LLM으로 답합니다.";
       const saved = await db.withUser(userId, (sql) =>
         sql(
           `insert into chat_logs (user_id, question, answer, cited_chunk_ids)
@@ -55,6 +54,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
         answer: office.answer,
         citations: office.citations,
         suggestHelpdesk: office.suggestHelpdesk,
+        pendingActions: office.pendingActions,
         llm: status,
       };
     }
@@ -101,6 +101,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
       answer,
       citations: draft.citations,
       suggestHelpdesk: draft.suggestHelpdesk,
+      pendingActions: [],
       llm: status,
     };
   } catch (error) {

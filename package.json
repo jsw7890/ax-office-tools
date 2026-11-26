@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "test": "node --import tsx --test --test-concurrency=1 tests/*.test.ts",
-    "load-regulations": "tsx scripts/load-regulations.ts"
+    "load-regulations": "tsx scripts/load-regulations.ts",
+    "eval": "tsx scripts/eval-chat.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "0.5.15",

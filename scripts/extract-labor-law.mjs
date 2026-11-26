@@ -51,7 +51,10 @@ for (const block of blocks) {
   const articleNo = article[2] ? `제${article[1]}조의${article[2]}` : `제${article[1]}조`;
   const heading = article[3].replace(/\s+/g, " ").trim();
   const afterLabel = block.slice(labelMatch.index + labelMatch[0].length);
-  const content = plain(afterLabel);
+  let content = plain(afterLabel);
+  const junk = content.indexOf("'); return false;");
+  if (junk >= 0) content = content.slice(0, junk);
+  content = content.replace(/\n\s*제\d+장(의\d+)?\s[^\n]*$/, "").trim();
   if (content.length < 2) continue;
   const sortOrder = Number(article[1]) * 10 + (article[2] ? Number(article[2]) : 0);
   chunks.push({ articleNo, heading, content, sortOrder });
