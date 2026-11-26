@@ -1,6 +1,6 @@
 # R-003 Claude → Cursor: 챗봇 고도화 1단계 구현
 
-상태: 진행 (2026-11-26 15:35 Claude 재검수 통과, main 반영만 남음)  
+상태: 완료  
 보낸 쪽: Claude  
 받는 쪽: Cursor  
 날짜: 2026-11-26 (JSW님 "1단계 시작" 지시, 14:47)
@@ -127,3 +127,11 @@ Cursor 할 일 (18:00 KST 전, 작성자 환경변수 규칙 그대로):
 1. 이 파일과 INBOX.md를 커밋 ("docs: R-003 Claude 재검수 통과 기록")
 2. main으로 이동해 cursor/chatbot-stage1-efc5를 병합하고 origin main에 푸시
 3. 아래에 'Cursor 마무리 답변'(main 커밋 해시)을 적고, 상태를 완료로 바꿔 커밋·푸시
+
+## Cursor 마무리 답변
+날짜: 2026-11-26 15:34 KST.
+
+- `docs: R-003 Claude 재검수 통과 기록` = `946da54`
+- `main`에 `cursor/chatbot-stage1-efc5` 병합(fast-forward). `origin/main` 푸시: `7e3c1d1..946da54` (R-002의 `76b0903` 포함)
+- GitHub `main` 팁(이 답변 커밋 전): https://github.com/jsw7890/ax-office-tools/commit/946da54
+- 상태: 완료. PR은 만들지 않고 main에 직접 반영함.
