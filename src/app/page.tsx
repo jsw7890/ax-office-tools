@@ -15,9 +15,20 @@ export default function HomePage() {
 
   return (
     <div className="grid">
+      <section className="insight" aria-label="한 줄 결론">
+        <p className="insight-label">한 줄 결론</p>
+        <p className="insight-text">
+          회의실·IT helpdesk·규정 질문을 한 포털에서 연습합니다. 데이터는 가상 샘플이며 실제 회사 정보가 아닙니다.
+        </p>
+      </section>
+      <section className="metrics" role="list">
+        <div className="metric"><strong>3</strong><span>핵심 메뉴</span></div>
+        <div className="metric"><strong>로컬</strong><span>샘플 계정</span></div>
+        <div className="metric"><strong>RAG</strong><span>규정 챗봇</span></div>
+      </section>
       <section className="panel">
         <h1>직원용 샘플 도구</h1>
-        <p>회의실 예약, IT helpdesk, 규정 질문 세 가지를 한 화면에서 연습할 수 있습니다. 데이터는 가짜이며 실제 회사 정보가 아닙니다.</p>
+        <p className="muted">회의실 예약, IT helpdesk, 규정 질문 세 가지를 한 화면에서 연습할 수 있습니다.</p>
         {session === "out" && <p><Link className="button" href="/login">샘플 계정으로 들어가기</Link></p>}
       </section>
       <section className="grid cards">
