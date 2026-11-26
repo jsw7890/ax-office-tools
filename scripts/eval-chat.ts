@@ -19,7 +19,14 @@ const jsonChunks = (data.chunks as Chunk[]).map((c, i) => ({
   baseDate: data.baseDate,
   sourceUrl: data.sourceUrl,
 }));
-const questions: Question[] = JSON.parse(readFileSync("tests/eval/questions.json", "utf8"));
+const questionsPath = process.argv[2] ?? "tests/eval/questions.json";
+const questions: Question[] = JSON.parse(readFileSync(questionsPath, "utf8"));
+console.log(`질문 파일: ${questionsPath} (${questions.length}건)`);
+
+const nDaily = questions.filter((q) => q.type === "일상어").length;
+const nFormal = questions.filter((q) => q.type === "조문 표현").length;
+const nOob = questions.filter((q) => q.type === "범위 밖").length;
+const nHold = questions.filter((q) => q.type === "일상어" || q.type === "오분류 함정").length;
 
 function scoreCited(item: Question, cited: string[], rejected: boolean) {
   if (parseOfficeIntent(item.q).action !== "none") return `업무로 오분류(${parseOfficeIntent(item.q).action})`;
@@ -34,28 +41,54 @@ function tally(summary: Record<string, Record<string, number>>, type: string, ve
   summary[type][verdict] = (summary[type][verdict] ?? 0) + 1;
 }
 
+function hitTop3(item: Question, cited: string[]): boolean {
+  return item.ok.length > 0 && item.ok.some((article) => cited.includes(article));
+}
+
+function metricsLine(
+  label: string,
+  daily: number,
+  formal: number,
+  oob: number,
+  hold: number,
+  extra = "",
+): string {
+  return `${label}: 일상어 상위3 정답 ${daily}/${nDaily}, 조문표현 상위3 ${formal}/${nFormal}, 범위밖 거절 ${oob}/${nOob}, 일상어·오분류 함정 상위3 ${hold}/${nHold}${extra}`;
+}
+
 const keywordSummary: Record<string, Record<string, number>> = {};
 let keywordDailyTop3 = 0;
 let keywordFormalTop3 = 0;
 let keywordOob = 0;
+let keywordHoldTop3 = 0;
+let keywordTrapMisroute = 0;
 console.log("=== 키워드 검색 ===");
 for (const item of questions) {
-  const draft = answerFromChunks(item.q, jsonChunks);
-  const cited = draft.citations.map((c) => c.articleNo).slice(0, 3);
-  const rejected =
-    cited.length === 0 || draft.answer === NOT_FOUND_ANSWER || draft.answer === OFF_TOPIC_ANSWER;
-  const verdict = scoreCited(item, cited, rejected);
+  const route = parseOfficeIntent(item.q).action;
+  let cited: string[] = [];
+  let rejected = false;
+  let verdict: string;
+  if (route !== "none") {
+    verdict = `업무로 오분류(${route})`;
+    if (item.type === "오분류 함정") keywordTrapMisroute += 1;
+  } else {
+    const draft = answerFromChunks(item.q, jsonChunks);
+    cited = draft.citations.map((c) => c.articleNo).slice(0, 3);
+    rejected =
+      cited.length === 0 || draft.answer === NOT_FOUND_ANSWER || draft.answer === OFF_TOPIC_ANSWER;
+    verdict = scoreCited(item, cited, rejected);
+    if (item.type === "일상어" && hitTop3(item, cited)) keywordDailyTop3 += 1;
+    if (item.type === "조문 표현" && hitTop3(item, cited)) keywordFormalTop3 += 1;
+    if ((item.type === "일상어" || item.type === "오분류 함정") && hitTop3(item, cited)) keywordHoldTop3 += 1;
+    if (item.type === "범위 밖" && rejected) keywordOob += 1;
+  }
   tally(keywordSummary, item.type, verdict);
-  if (item.type === "일상어" && item.ok.some((article) => cited.includes(article))) keywordDailyTop3 += 1;
-  if (item.type === "조문 표현" && item.ok.some((article) => cited.includes(article))) keywordFormalTop3 += 1;
-  if (item.type === "범위 밖" && rejected) keywordOob += 1;
   console.log([item.id, verdict, cited.join(",") || "-", item.ok.join("/") || "-", item.q].join(" | "));
 }
 console.log("\n=== 키워드 검색 요약 ===");
 console.log(JSON.stringify(keywordSummary, null, 2));
-console.log(
-  `키워드 지표: 일상어 상위3 정답 ${keywordDailyTop3}/24, 조문표현 상위3 ${keywordFormalTop3}/6, 범위밖 거절 ${keywordOob}/4`,
-);
+console.log(metricsLine("키워드 지표", keywordDailyTop3, keywordFormalTop3, keywordOob, keywordHoldTop3));
+console.log(`키워드 오분류 함정 업무 분류: ${keywordTrapMisroute}/3`);
 
 const STAFF_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
@@ -105,6 +138,8 @@ async function runHybridEval() {
   let dailyTop3 = 0;
   let formalTop3 = 0;
   let oobReject = 0;
+  let holdTop3 = 0;
+  let trapMisroute = 0;
 
   for (const item of questions) {
     const route = parseOfficeIntent(item.q).action;
@@ -112,6 +147,7 @@ async function runHybridEval() {
     let verdict = "답 못 함";
     if (route !== "none") {
       verdict = `업무로 오분류(${route})`;
+      if (item.type === "오분류 함정") trapMisroute += 1;
     } else {
       const vectors = await embedTexts(model, [item.q]);
       const vector = vectors?.[0];
@@ -124,8 +160,9 @@ async function runHybridEval() {
       cited = outcome.draft.citations.map((c) => c.articleNo).slice(0, 3);
       const rejected = cited.length === 0;
       verdict = scoreCited(item, cited, rejected);
-      if (item.type === "일상어" && item.ok.some((article) => cited.includes(article))) dailyTop3 += 1;
-      if (item.type === "조문 표현" && item.ok.some((article) => cited.includes(article))) formalTop3 += 1;
+      if (item.type === "일상어" && hitTop3(item, cited)) dailyTop3 += 1;
+      if (item.type === "조문 표현" && hitTop3(item, cited)) formalTop3 += 1;
+      if ((item.type === "일상어" || item.type === "오분류 함정") && hitTop3(item, cited)) holdTop3 += 1;
       if (item.type === "범위 밖" && rejected) oobReject += 1;
     }
     tally(hybridSummary, item.type, verdict);
@@ -135,8 +172,16 @@ async function runHybridEval() {
   console.log("\n=== 혼합 검색 요약 ===");
   console.log(JSON.stringify(hybridSummary, null, 2));
   console.log(
-    `혼합 지표: 일상어 상위3 정답 ${dailyTop3}/24, 조문표현 상위3 ${formalTop3}/6, 범위밖 거절 ${oobReject}/4, 유사도 기준값 ${SIMILARITY_THRESHOLD}`,
+    metricsLine(
+      "혼합 지표",
+      dailyTop3,
+      formalTop3,
+      oobReject,
+      holdTop3,
+      `, 유사도 기준값 ${SIMILARITY_THRESHOLD}`,
+    ),
   );
+  console.log(`혼합 오분류 함정 업무 분류: ${trapMisroute}/3`);
   await db.close().catch(() => undefined);
 }
 

@@ -1,5 +1,16 @@
 # 테스트 결과 (2026-11-26 KST)
 
+## R-004 검수용 질문 (holdout, 1회)
+
+명령: `npx tsx scripts/eval-chat.ts docs/handoff/requests/R-004-holdout_Claude.json` (2026-11-26 17:25 KST). 기준값·검색 코드 미변경.
+
+| 구분 | 일상어 상위3 | 일상어·오분류 함정 | 함정 업무 분류 | 범위 밖 거절 |
+| --- | --- | --- | --- | --- |
+| 키워드 | 1/14 | 1/17 | 0/3 | 1/3 |
+| 혼합 | **12/14** | **15/17** | **0/3** | 0/3 (기록) |
+
+문항별 표는 R-004 'Cursor 검수용 실행 답변'.
+
 ## R-004 재작업 (거절 규칙 진단 R1~R4)
 
 브랜치: `cursor/chatbot-stage2-efc5`. 실행: `npx tsx scripts/diagnose-hybrid.ts` (2026-11-26 17:00 KST 전후, bge-m3, `.data` 임베딩). 기준은 낮추지 않음.

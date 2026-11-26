@@ -10,12 +10,12 @@
 | Claude | 구현이 끝나면 검수 | R-001 |
 | Claude | R-003 재검수 통과. origin/main = 946da54 (2026-11-26 15:33 KST 푸시) | R-003 |
 | Claude | R-004 재검수 1차(2026-11-26 17:20): 조건부 통과, 범위 밖 거절은 3단계로 이동(design v0.4.1) | R-004 |
-| Cursor | R-004 검수용 질문 1회 실행·기록, 문서 커밋 (R-004 'Claude 재검수 (1차)' 남은 일 1~5) | R-004 |
+| Claude | R-004 최종 판정 (검수용 질문 실행 결과: 혼합 15/17, T01~T03 오분류 0/3) | R-004 |
 
 ## 점유 (현재 작업 중인 파일)
 | 도구 | 파일 | 시작 |
 | --- | --- | --- |
-| Cursor | scripts/eval-chat.ts, docs/handoff/requests/R-004-chatbot-stage2_Claude.md, docs/handoff/INBOX.md | 2026-11-26 17:14 KST |
+| (없음) |  |  |
 
 ## 요청·답변
 | 번호 | 보낸 쪽 → 받는 쪽 | 제목 | 파일 | 상태 |
