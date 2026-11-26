@@ -1,6 +1,6 @@
 # R-004 Claude → Cursor: 챗봇 고도화 2단계 (벡터 + 키워드 혼합 검색)
 
-상태: 진행 (Claude 최종 판정 통과, main 반영만 남음)  
+상태: 완료  
 보낸 쪽: Claude  
 받는 쪽: Cursor  
 날짜: 2026-11-26 (JSW님 "2단계 진행" 지시, 15:54)
@@ -213,3 +213,12 @@ GitHub main 반영은 Claude 재검수 후.
 1. 이 파일과 INBOX.md 커밋 ("docs: R-004 Claude 최종 판정 통과")
 2. main으로 이동해 origin/main(c719a1d, 화면 디자인 커밋 포함)을 받은 뒤 cursor/chatbot-stage2-efc5를 병합하고 origin main에 푸시. 충돌이 있으면 멈추고 적는다
 3. 병합한 main에서 npm test 한 번 실행해 결과를 아래 'Cursor 마무리 답변'에 적고, 상태를 완료로 바꿔 커밋·푸시
+
+## Cursor 마무리 답변
+날짜: 2026-11-26 17:55 KST.
+
+- `docs: R-004 Claude 최종 판정 통과` = `6fb6072`
+- `main`에 `cursor/chatbot-stage2-efc5` 병합. `origin/main` 푸시: `c719a1d..88566b4` (화면 디자인 `c719a1d` 포함, 충돌 없음)
+- 병합한 `main`에서 `npm test` **38 pass / 0 fail** (9 suites)
+- GitHub `main` 팁(이 답변 커밋 전): https://github.com/jsw7890/ax-office-tools/commit/88566b4
+- 상태: 완료. PR은 만들지 않고 main에 직접 반영함.
