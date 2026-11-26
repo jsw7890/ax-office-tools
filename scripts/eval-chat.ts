@@ -1,9 +1,9 @@
 // 평가 질문을 LLM 없이 업무 분류 + 조문 검색(키워드·혼합)에 넣어 채점한다. 실행: npm run eval
 import { readFileSync } from "node:fs";
-import { answerFromChunks, NOT_FOUND_ANSWER, OFF_TOPIC_ANSWER, rankKeywordHits } from "../src/lib/chat/answer";
+import { answerFromChunks, NOT_FOUND_ANSWER, OFF_TOPIC_ANSWER } from "../src/lib/chat/answer";
 import { parseOfficeIntent } from "../src/lib/chat/intent";
 import { embedModelName, embedTexts } from "../src/lib/chat/ollama";
-import { SIMILARITY_THRESHOLD } from "../src/lib/chat/search";
+import { runHybridWithVector, SIMILARITY_THRESHOLD } from "../src/lib/chat/search";
 import { getDb } from "../src/lib/bootstrap";
 
 type Question = { id: string; type: string; q: string; ok: string[] };
@@ -57,27 +57,7 @@ console.log(
   `키워드 지표: 일상어 상위3 정답 ${keywordDailyTop3}/24, 조문표현 상위3 ${keywordFormalTop3}/6, 범위밖 거절 ${keywordOob}/4`,
 );
 
-const RRF_SQL = `
-with v as (
-  select chunk_id,
-         row_number() over (order by min(embedding <=> $1::vector)) as rn,
-         1 - min(embedding <=> $1::vector) as similarity
-  from regulation_embeddings
-  where model = $2
-  group by chunk_id
-  order by rn limit 20
-),
-k as (
-  select chunk_id, rn
-  from unnest($3::uuid[]) with ordinality as t(chunk_id, rn)
-)
-select c.article_no, v.similarity,
-       coalesce(1.0/(60+v.rn), 0) + coalesce(1.0/(60+k.rn), 0) as score
-from v
-full outer join k on v.chunk_id = k.chunk_id
-join regulation_chunks c on c.id = coalesce(v.chunk_id, k.chunk_id)
-order by score desc, c.sort_order
-limit 3`;
+const STAFF_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 
 async function runHybridEval() {
   const model = embedModelName();
@@ -140,18 +120,9 @@ async function runHybridEval() {
         await db.close().catch(() => undefined);
         return;
       }
-      const keywordIds = rankKeywordHits(item.q, dbChunks)
-        .slice(0, 20)
-        .map((hit) => hit.id);
-      const rows = await db.asOwner((sql) => sql(RRF_SQL, [JSON.stringify(vector), model, keywordIds]));
-      const asksMinors = /연소|미성년|18세|15세|고등|청소년/.test(item.q);
-      cited = rows
-        .map((row) => String(row.article_no))
-        .filter((article) => asksMinors || article !== "제69조");
-      const topSimilarity = Number(rows[0]?.similarity ?? 0);
-      const rejected =
-        cited.length === 0 || (keywordIds.length === 0 && topSimilarity < SIMILARITY_THRESHOLD);
-      if (rejected) cited = [];
+      const outcome = await runHybridWithVector(db, STAFF_ID, item.q, dbChunks, vector, model);
+      cited = outcome.draft.citations.map((c) => c.articleNo).slice(0, 3);
+      const rejected = cited.length === 0;
       verdict = scoreCited(item, cited, rejected);
       if (item.type === "일상어" && item.ok.some((article) => cited.includes(article))) dailyTop3 += 1;
       if (item.type === "조문 표현" && item.ok.some((article) => cited.includes(article))) formalTop3 += 1;

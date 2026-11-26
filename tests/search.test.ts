@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { before, describe, test } from "node:test";
 import { asDateOnly } from "../src/lib/time";
-import { runHybridWithVector, SIMILARITY_THRESHOLD } from "../src/lib/chat/search";
+import { QUESTION_EMBED_TIMEOUT_MS, runHybridWithVector, SIMILARITY_THRESHOLD } from "../src/lib/chat/search";
 import { answerFromChunks, type ProvidedChunk } from "../src/lib/chat/answer";
 import { askQuestion } from "../src/lib/services/chat";
 import { setupDb } from "./helpers";
@@ -80,6 +80,7 @@ describe("혼합 검색", { concurrency: 1 }, () => {
     assert.equal(outcome.searchMode, "hybrid");
     assert.equal(outcome.draft.citations[0]?.articleNo, "제54조");
     assert.ok(SIMILARITY_THRESHOLD > 0);
+    assert.equal(QUESTION_EMBED_TIMEOUT_MS, 10_000);
   });
 
   test("키워드 검색과 혼합 검색의 거절 문장은 같다", async () => {

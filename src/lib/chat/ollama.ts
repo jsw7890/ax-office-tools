@@ -187,7 +187,7 @@ export function embedModelName(): string {
   return process.env.EMBED_MODEL?.trim() || DEFAULT_EMBED_MODEL;
 }
 
-export async function embedTexts(model: string, texts: string[]): Promise<number[][] | null> {
+export async function embedTexts(model: string, texts: string[], timeoutMs = 60_000): Promise<number[][] | null> {
   if (texts.length === 0) return [];
   const provider = (process.env.LLM_PROVIDER ?? "ollama").trim().toLowerCase();
   if (provider === "mock" || provider === "claude") return null;
@@ -198,7 +198,7 @@ export async function embedTexts(model: string, texts: string[]): Promise<number
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ model, input: texts }),
     },
-    60_000,
+    timeoutMs,
   );
   if (!response?.ok) return null;
   const payload = (await response.json().catch(() => null)) as { embeddings?: number[][] } | null;

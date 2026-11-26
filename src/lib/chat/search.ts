@@ -12,6 +12,7 @@ import type { OfficeDatabase } from "@/lib/db";
 import type { Sql } from "@/lib/db";
 
 export const SIMILARITY_THRESHOLD = 0.45;
+export const QUESTION_EMBED_TIMEOUT_MS = 10_000;
 
 const OFF_TOPIC =
   /날씨|맛집|점심\s*메뉴|농담|스포츠|영화|게임|주식|코인|연예|번역해|코드\s*짜|노래|운세/;
@@ -38,7 +39,7 @@ full outer join k on v.chunk_id = k.chunk_id
 join regulation_chunks c on c.id = coalesce(v.chunk_id, k.chunk_id)
 join regulation_docs d on d.id = c.doc_id
 order by score desc, c.sort_order
-limit 3`;
+limit 6`;
 
 function excerpt(content: string): string {
   const compact = content.replace(/\s+\n/g, "\n").trim();
@@ -85,7 +86,7 @@ async function embeddingCount(sql: Sql, model: string): Promise<number> {
 }
 
 export async function embedQuestion(question: string, model = embedModelName()): Promise<number[] | null> {
-  const vectors = await embedTexts(model, [question]);
+  const vectors = await embedTexts(model, [question], QUESTION_EMBED_TIMEOUT_MS);
   return vectors?.[0] ?? null;
 }
 
@@ -144,11 +145,11 @@ export async function runHybridWithVector(
     const filtered = filterMinorArticles(
       question,
       picked.map((item) => item.chunk),
-    );
+    ).slice(0, 3);
     const topSimilarity = picked.find((item) => filtered.some((chunk) => chunk.id === item.chunk.id))?.similarity ?? 0;
-    const keywordFound = keywordHits.length > 0;
+    const keywordAnswered = answerFromChunks(question, chunks).citations.length > 0;
 
-    if (filtered.length === 0 || (!keywordFound && topSimilarity < SIMILARITY_THRESHOLD)) {
+    if (filtered.length === 0 || (!keywordAnswered && topSimilarity < SIMILARITY_THRESHOLD)) {
       return { draft: rejectHybrid(question), searchMode: "hybrid" };
     }
 
