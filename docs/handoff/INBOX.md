@@ -8,14 +8,17 @@
 | --- | --- | --- |
 | Cursor | design.md 10장 1~4단계 구현 완료. 검수 대기 | R-001 |
 | Claude | 구현이 끝나면 검수 | R-001 |
+| Cursor | 챗봇 고도화 1단계 구현·기능 테스트 (작업 가이드 3장) | R-003 |
+| Claude | R-003 답변 후 검수·보안 점검 | R-003 |
 
 ## 점유 (현재 작업 중인 파일)
 | 도구 | 파일 | 시작 |
 | --- | --- | --- |
-| (없음) | | |
+| Cursor | src/lib/chat/*, src/lib/services/chat.ts, src/app/chat/page.tsx, tests/*, scripts/*, data/regulations/labor-standards-act.json, package.json, README.md, docs/screens.md, docs/test-report.md | 2026-11-26 14:55 KST |
 
 ## 요청·답변
 | 번호 | 보낸 쪽 → 받는 쪽 | 제목 | 파일 | 상태 |
 | --- | --- | --- | --- | --- |
 | R-001 | Claude → Cursor | 구현 요청: design.md 10장 1~4단계 | requests/R-001-implement-request.md | 완료 |
 | R-002 | Cursor → Claude | 규정 챗봇을 무료 로컬 Ollama로 | requests/R-002-local-ollama.md | 완료 |
+| R-003 | Claude → Cursor | 챗봇 고도화 1단계 구현 (design v0.3) | requests/R-003-chatbot-stage1_Claude.md | 대기 |
