@@ -7,7 +7,14 @@ import type { PendingAction } from "@/lib/chat/pending";
 import { DISCLAIMER } from "@/lib/labels";
 
 type Citation = { docTitle: string; articleNo: string; heading: string; baseDate: string; sourceUrl: string };
-type LlmStatus = { available: boolean; used?: boolean; model: string; mode: "local_llm" | "article_search"; detail: string };
+type LlmStatus = {
+  available: boolean;
+  used?: boolean;
+  model: string;
+  mode: "local_llm" | "article_search" | "hybrid";
+  searchMode?: "hybrid" | "keyword";
+  detail: string;
+};
 type Result = { answer: string; citations: Citation[]; suggestHelpdesk: boolean; pendingActions?: PendingAction[]; llm: LlmStatus };
 type Turn = { question: string; askedAt: string; result: Result; confirmed: Record<number, "done" | "error">; confirmError: Record<number, string> };
 
@@ -150,9 +157,11 @@ export default function ChatPage() {
           <h2>답변</h2>
           <p className="muted">
             {turn.result.llm.used
-              ? `로컬 LLM 사용 (${turn.result.llm.model})`
+              ? `로컬 LLM 사용 (${turn.result.llm.model}) · ${turn.result.llm.searchMode === "hybrid" ? "혼합 검색" : "키워드 검색"}`
               : turn.result.citations.length
-                ? "조문 검색으로 답함"
+                ? turn.result.llm.searchMode === "hybrid" || turn.result.llm.mode === "hybrid"
+                  ? "혼합 검색(벡터+키워드)으로 답함"
+                  : "키워드 검색(조문 검색)으로 답함"
                 : "업무 처리(규칙)"}
           </p>
           <p className="answer">{turn.result.answer}</p>

@@ -1,12 +1,16 @@
 import type { DraftAnswer } from "@/lib/chat/answer";
 
 export const DEFAULT_OLLAMA_MODEL = "qwen2.5:0.5b";
+export const DEFAULT_EMBED_MODEL = "bge-m3";
+
+export type SearchMode = "hybrid" | "keyword";
 
 export type LocalLlmStatus = {
   available: boolean;
   used: boolean;
   model: string;
-  mode: "local_llm" | "article_search";
+  mode: "local_llm" | "article_search" | "hybrid";
+  searchMode?: SearchMode;
   detail: string;
 };
 
@@ -177,6 +181,29 @@ export async function polishWithLocalLlm(
     return null;
   }
   return attachCitation(text, draft);
+}
+
+export function embedModelName(): string {
+  return process.env.EMBED_MODEL?.trim() || DEFAULT_EMBED_MODEL;
+}
+
+export async function embedTexts(model: string, texts: string[]): Promise<number[][] | null> {
+  if (texts.length === 0) return [];
+  const provider = (process.env.LLM_PROVIDER ?? "ollama").trim().toLowerCase();
+  if (provider === "mock" || provider === "claude") return null;
+  const response = await ollamaFetch(
+    "/api/embed",
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ model, input: texts }),
+    },
+    60_000,
+  );
+  if (!response?.ok) return null;
+  const payload = (await response.json().catch(() => null)) as { embeddings?: number[][] } | null;
+  if (!payload?.embeddings?.length) return null;
+  return payload.embeddings;
 }
 
 export function isOllamaRequest(input: RequestInfo | URL): boolean {

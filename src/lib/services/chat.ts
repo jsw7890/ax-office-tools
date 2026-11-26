@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/bootstrap";
-import { answerFromChunks, refuseUnapprovedModel, type ProvidedChunk } from "@/lib/chat/answer";
+import { refuseUnapprovedModel, type ProvidedChunk } from "@/lib/chat/answer";
 import { handleOfficeQuestion } from "@/lib/chat/office";
+import { hybridSearch } from "@/lib/chat/search";
 import { localLlmModel, polishWithLocalLlm, probeLocalLlm, type LocalLlmStatus } from "@/lib/chat/ollama";
 import { AppError, mapDbError } from "@/lib/errors";
 import { asDateOnly } from "@/lib/time";
@@ -75,16 +76,32 @@ export async function askQuestion(userId: string, questionInput: unknown) {
       baseDate: asDateOnly(row.base_date),
       sourceUrl: String(row.source_url),
     }));
-    const draft = answerFromChunks(question, chunks);
+    const { draft, searchMode } = await hybridSearch(db, userId, question, chunks);
     const status = await chatLlmStatus();
+    status.searchMode = searchMode;
     const polished = status.available ? await polishWithLocalLlm(question, draft, status.model) : null;
     const answer = polished ?? draft.answer;
     if (!polished) {
       status.used = false;
-      status.mode = "article_search";
+      status.mode = searchMode === "hybrid" ? "hybrid" : "article_search";
+      const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색(조문 검색)";
       if (status.available && draft.citations.length > 0) {
-        status.detail = `로컬 LLM(${status.model})이 이번 답을 만들지 못해 조문 검색으로 답했습니다. 꺼져 있으면 조문 검색으로 답합니다.`;
+        status.detail = `로컬 LLM(${status.model})이 이번 답을 만들지 못해 ${searchLabel}으로 답했습니다. 꺼져 있으면 ${searchLabel}으로 답합니다.`;
+      } else if (draft.citations.length > 0) {
+        status.detail =
+          searchMode === "hybrid"
+            ? "혼합 검색(벡터+키워드)으로 답했습니다. 로컬 LLM이 꺼져 있으면 검색 결과만 보여 줍니다."
+            : "키워드 검색(조문 검색)으로 답했습니다. 임베딩이 없거나 Ollama가 꺼져 있으면 키워드 검색으로 답합니다.";
+      } else {
+        status.detail =
+          searchMode === "hybrid"
+            ? "혼합 검색으로 답했습니다."
+            : "키워드 검색(조문 검색)으로 답했습니다. 꺼져 있으면 조문 검색으로 답합니다.";
       }
+    } else {
+      status.mode = "local_llm";
+      const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색";
+      status.detail = `로컬 LLM 사용 중 (${status.model}). 근거는 ${searchLabel}으로 고른 조문입니다.`;
     }
     const cited = draft.citations.map((citation) => citation.chunkId).join(",");
     const saved = await db.withUser(userId, (sql) =>
