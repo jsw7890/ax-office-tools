@@ -252,3 +252,12 @@ qwen O03은 여전히 답함. pe 최대가 2048·4096에서 같아 입력 잘림
 2. `asDateOnly`는 `Object.prototype.toString.call === '[object Date]'`와 Date 문자열을 `YYYY-MM-DD`로 바꿈. `/chat` 출처 줄도 같은 함수를 쓰므로 화면 기준일도 같이 수정됨.
 
 `npm test` **48 pass / 0 fail**. `npm run build` 성공. README·screens.md에 3단계 기준 미달과 원문 확인 한계를 적음.
+
+## Cursor 마무리 답변
+날짜: 2026-11-27 14:30 KST.
+
+- `fix: R-005 재작업 2 (모델 조문 출처, 기준일 YYYY-MM-DD)` = `202590d`
+- `main`에 `cursor/chatbot-stage3-efc5` 병합(fast-forward). `origin/main` 푸시: `ddace9a..202590d` (충돌 없음)
+- 병합한 `main`에서 `npm test` **48 pass / 0 fail** (11 suites)
+- GitHub `main` 팁(이 답변 커밋 전): https://github.com/jsw7890/ax-office-tools/commit/202590d
+- 상태: 완료. 검수용 질문 재실행 없음. PR은 만들지 않고 main에 직접 반영함.
