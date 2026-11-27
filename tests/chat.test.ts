@@ -118,7 +118,11 @@ describe("규정 챗봇", { concurrency: 1 }, () => {
         chatCalled = true;
         const body = JSON.stringify({
           message: {
-            content: "1주 소정근로시간은 40시간입니다. 근로기준법 제50조, 기준일 2026-10-08.",
+            content: JSON.stringify({
+              answerable: true,
+              articles: ["제50조"],
+              answer: "1주 소정근로시간은 40시간입니다.",
+            }),
           },
         });
         return new Response(body, { status: 200, headers: { "content-type": "application/json" } });
@@ -156,7 +160,13 @@ describe("규정 챗봇", { concurrency: 1 }, () => {
       if (url.includes("/api/chat")) {
         return new Response(
           JSON.stringify({
-            message: { content: "1주는 52시간입니다. 근로기준법 제50조, 기준일 2026-10-08." },
+            message: {
+              content: JSON.stringify({
+                answerable: true,
+                articles: ["제50조"],
+                answer: "1주는 52시간입니다.",
+              }),
+            },
           }),
           { status: 200, headers: { "content-type": "application/json" } },
         );
@@ -170,6 +180,73 @@ describe("규정 챗봇", { concurrency: 1 }, () => {
       assert.match(result.answer, /제50조/);
       assert.match(result.answer, /40시간/);
       assert.doesNotMatch(result.answer, /52시간/);
+    } finally {
+      globalThis.fetch = original;
+      process.env.LLM_PROVIDER = "mock";
+    }
+  });
+
+  test("답이 조문에 없으면 확인 불가 문장으로 거절한다", async () => {
+    await db.asOwner((sql) => sql("delete from chat_logs where user_id = $1", [staffId]));
+    process.env.LLM_PROVIDER = "ollama";
+    process.env.OLLAMA_MODEL = "qwen2.5:0.5b";
+    const original = globalThis.fetch;
+    globalThis.fetch = async (input, init) => {
+      if (!isOllamaRequest(input)) return original(input, init);
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/tags")) {
+        return new Response(JSON.stringify({ models: [{ name: "qwen2.5:0.5b" }] }), { status: 200 });
+      }
+      if (url.includes("/api/chat")) {
+        return new Response(
+          JSON.stringify({
+            message: { content: JSON.stringify({ answerable: false, articles: [], answer: "" }) },
+          }),
+          { status: 200, headers: { "content-type": "application/json" } },
+        );
+      }
+      return new Response("not found", { status: 404 });
+    };
+    try {
+      const result = await askQuestion(staffId, "1주 근로시간은 최대 몇 시간인가요?");
+      assert.equal(result.answer, NOT_FOUND_ANSWER);
+      assert.equal(result.suggestHelpdesk, true);
+      assert.equal(result.llm.used, true);
+    } finally {
+      globalThis.fetch = original;
+      process.env.LLM_PROVIDER = "mock";
+    }
+  });
+
+  test("연차 조문에 없는 20일은 차단하고 15일은 통과한다", async () => {
+    await db.asOwner((sql) => sql("delete from chat_logs where user_id = $1", [staffId]));
+    process.env.LLM_PROVIDER = "ollama";
+    process.env.OLLAMA_MODEL = "qwen2.5:0.5b";
+    const original = globalThis.fetch;
+    let pass = false;
+    globalThis.fetch = async (input, init) => {
+      if (!isOllamaRequest(input)) return original(input, init);
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/api/tags")) {
+        return new Response(JSON.stringify({ models: [{ name: "qwen2.5:0.5b" }] }), { status: 200 });
+      }
+      if (url.includes("/api/chat")) {
+        const answer = pass
+          ? { answerable: true, articles: ["제60조"], answer: "연차 유급휴가는 15일입니다." }
+          : { answerable: true, articles: ["제60조"], answer: "연차는 20일입니다." };
+        return new Response(JSON.stringify({ message: { content: JSON.stringify(answer) } }), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    };
+    try {
+      const blocked = await askQuestion(staffId, "연차 유급휴가는 며칠인가요?");
+      assert.equal(blocked.llm.used, false);
+      assert.match(blocked.answer, /제60조/);
+      assert.doesNotMatch(blocked.answer, /연차는 20일입니다/);
+      pass = true;
+      const ok = await askQuestion(staffId, "연차 유급휴가는 며칠인가요?");
+      assert.equal(ok.llm.used, true);
+      assert.match(ok.answer, /15일/);
     } finally {
       globalThis.fetch = original;
       process.env.LLM_PROVIDER = "mock";

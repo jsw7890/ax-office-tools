@@ -18,6 +18,7 @@ export type Citation = {
   heading: string;
   baseDate: string;
   sourceUrl: string;
+  excerpt?: string;
 };
 
 export type DraftAnswer = {
@@ -144,6 +145,7 @@ export function answerFromChunks(question: string, chunks: ProvidedChunk[]): Dra
     heading: chunk.heading,
     baseDate: chunk.baseDate,
     sourceUrl: chunk.sourceUrl,
+    excerpt: chunk.content,
   }));
   const answer = picked
     .map(({ chunk }) => {

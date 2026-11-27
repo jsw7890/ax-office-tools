@@ -6,7 +6,14 @@ import { api } from "@/lib/browser";
 import type { PendingAction } from "@/lib/chat/pending";
 import { DISCLAIMER } from "@/lib/labels";
 
-type Citation = { docTitle: string; articleNo: string; heading: string; baseDate: string; sourceUrl: string };
+type Citation = {
+  docTitle: string;
+  articleNo: string;
+  heading: string;
+  baseDate: string;
+  sourceUrl: string;
+  excerpt?: string;
+};
 type LlmStatus = {
   available: boolean;
   used?: boolean;
@@ -182,13 +189,17 @@ export default function ChatPage() {
             );
           })}
           {turn.result.citations.length > 0 && (
-            <ul>
+            <div>
               {turn.result.citations.map((citation) => (
-                <li key={`${citation.articleNo}-${citation.baseDate}`}>
-                  {citation.docTitle} {citation.articleNo} {citation.heading} · 기준일 {citation.baseDate} · {citation.sourceUrl}
-                </li>
+                <details key={`${citation.articleNo}-${citation.baseDate}`}>
+                  <summary>근거 조문 보기 · {citation.articleNo} {citation.heading}</summary>
+                  <p className="answer">{citation.excerpt ?? ""}</p>
+                  <p className="muted">
+                    출처: {citation.docTitle} {citation.articleNo} (기준일 {citation.baseDate}) · {citation.sourceUrl}
+                  </p>
+                </details>
               ))}
-            </ul>
+            </div>
           )}
           {turn.result.suggestHelpdesk && (
             <p>

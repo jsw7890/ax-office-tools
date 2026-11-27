@@ -71,6 +71,7 @@ function draftFromChunks(question: string, picked: ProvidedChunk[]): DraftAnswer
     heading: chunk.heading,
     baseDate: chunk.baseDate,
     sourceUrl: chunk.sourceUrl,
+    excerpt: chunk.content,
   }));
   const answer = picked
     .map((chunk) => {

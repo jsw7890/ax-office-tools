@@ -1,8 +1,9 @@
 // 평가 질문을 LLM 없이 업무 분류 + 조문 검색(키워드·혼합)에 넣어 채점한다. 실행: npm run eval
 import { readFileSync } from "node:fs";
-import { answerFromChunks, NOT_FOUND_ANSWER, OFF_TOPIC_ANSWER } from "../src/lib/chat/answer";
+import { answerFromChunks, NOT_FOUND_ANSWER, OFF_TOPIC_ANSWER, type DraftAnswer, type ProvidedChunk } from "../src/lib/chat/answer";
 import { parseOfficeIntent } from "../src/lib/chat/intent";
-import { embedModelName, embedTexts } from "../src/lib/chat/ollama";
+import { buildEvidenceText } from "../src/lib/chat/evidence";
+import { answerWithLocalLlm, embedModelName, embedTexts } from "../src/lib/chat/ollama";
 import { runHybridWithVector, SIMILARITY_THRESHOLD } from "../src/lib/chat/search";
 import { getDb } from "../src/lib/bootstrap";
 
@@ -19,9 +20,26 @@ const jsonChunks = (data.chunks as Chunk[]).map((c, i) => ({
   baseDate: data.baseDate,
   sourceUrl: data.sourceUrl,
 }));
-const questionsPath = process.argv[2] ?? "tests/eval/questions.json";
+function parseCli(argv: string[]) {
+  let questionsPath = "tests/eval/questions.json";
+  let answerModel: string | undefined;
+  const positional: string[] = [];
+  for (let i = 0; i < argv.length; i += 1) {
+    if (argv[i] === "--model") {
+      answerModel = argv[i + 1];
+      i += 1;
+      continue;
+    }
+    positional.push(argv[i] ?? "");
+  }
+  if (positional[0]) questionsPath = positional[0];
+  return { questionsPath, answerModel };
+}
+
+const { questionsPath, answerModel } = parseCli(process.argv.slice(2));
 const questions: Question[] = JSON.parse(readFileSync(questionsPath, "utf8"));
 console.log(`질문 파일: ${questionsPath} (${questions.length}건)`);
+if (answerModel) console.log(`답변 모델: ${answerModel}`);
 
 const nDaily = questions.filter((q) => q.type === "일상어").length;
 const nFormal = questions.filter((q) => q.type === "조문 표현").length;
@@ -91,6 +109,8 @@ console.log(metricsLine("키워드 지표", keywordDailyTop3, keywordFormalTop3,
 console.log(`키워드 오분류 함정 업무 분류: ${keywordTrapMisroute}/3`);
 
 const STAFF_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const hybridCited = new Map<string, string[]>();
+const hybridDrafts = new Map<string, DraftAnswer>();
 
 async function runHybridEval() {
   const model = embedModelName();
@@ -158,6 +178,8 @@ async function runHybridEval() {
       }
       const outcome = await runHybridWithVector(db, STAFF_ID, item.q, dbChunks, vector, model);
       cited = outcome.draft.citations.map((c) => c.articleNo).slice(0, 3);
+      hybridCited.set(item.id, cited);
+      hybridDrafts.set(item.id, outcome.draft);
       const rejected = cited.length === 0;
       verdict = scoreCited(item, cited, rejected);
       if (item.type === "일상어" && hitTop3(item, cited)) dailyTop3 += 1;
@@ -182,10 +204,91 @@ async function runHybridEval() {
     ),
   );
   console.log(`혼합 오분류 함정 업무 분류: ${trapMisroute}/3`);
-  await db.close().catch(() => undefined);
+  return { db, dbChunks };
 }
 
-runHybridEval().catch((error) => {
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+}
+
+async function runAnswerEval(
+  db: Awaited<ReturnType<typeof getDb>>,
+  dbChunks: ProvidedChunk[],
+  model: string,
+) {
+  console.log(`\n=== 답변 모델 ${model} ===`);
+  let oobReject = 0;
+  let inScopeTop3 = 0;
+  let falseReject = 0;
+  let discarded = 0;
+  let hangul = 0;
+  const times: number[] = [];
+  for (const item of questions) {
+    const cited = hybridCited.get(item.id) ?? [];
+    const inTop3 = hitTop3(item, cited);
+    if (item.type !== "범위 밖" && inTop3) inScopeTop3 += 1;
+    const draft = hybridDrafts.get(item.id);
+    if (!draft || draft.citations.length === 0) {
+      const rejected = cited.length === 0;
+      if (item.type === "범위 밖" && rejected) oobReject += 1;
+      console.log([item.id, "검색만", "-", 0, ""].join(" | "));
+      continue;
+    }
+    const evidence = await buildEvidenceText(db, STAFF_ID, item.q, draft.citations, dbChunks);
+    const stage = await answerWithLocalLlm(item.q, draft, evidence, model);
+    const elapsed = stage?.elapsedMs ?? 0;
+    times.push(elapsed);
+    if (stage?.hangulQuantity) hangul += 1;
+    let verdict = "검색만";
+    if (!stage) {
+      verdict = "모델실패→검색";
+    } else if (stage.kind === "reject") {
+      verdict = "거절";
+      if (item.type === "범위 밖") oobReject += 1;
+      if (item.type !== "범위 밖" && inTop3) falseReject += 1;
+    } else if (stage.kind === "discard") {
+      verdict = "근거검사탈락→검색";
+      discarded += 1;
+    } else {
+      verdict = "답";
+    }
+    const preview = (stage?.kind === "model" ? stage.text : stage?.kind === "reject" ? NOT_FOUND_ANSWER : draft.answer).slice(0, 80);
+    console.log(
+      [item.id, verdict, (stage?.articles ?? cited).join(",") || "-", `${elapsed}ms`, preview.replace(/\s+/g, " ")].join(" | "),
+    );
+  }
+  const inScope = questions.filter((q) => q.type !== "범위 밖" && hitTop3(q, hybridCited.get(q.id) ?? [])).length;
+  console.log(
+    JSON.stringify(
+      {
+        model,
+        범위밖거절: `${oobReject}/${nOob}`,
+        범위안상위3: inScopeTop3,
+        잘못거절: `${falseReject}/${inScope}`,
+        근거검사탈락: discarded,
+        한글수량기록: hangul,
+        응답시간ms: { 중앙값: median(times), 최대: times.reduce((a, b) => Math.max(a, b), 0) },
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function main() {
+  const ctx = await runHybridEval();
+  if (!ctx) {
+    if (answerModel) console.log(`\n답변 모델 ${answerModel}: 미실행 (혼합 검색 없음)`);
+    return;
+  }
+  if (answerModel) await runAnswerEval(ctx.db, ctx.dbChunks, answerModel);
+  await ctx.db.close().catch(() => undefined);
+}
+
+main().catch((error) => {
   console.error(error);
   process.exit(1);
 });

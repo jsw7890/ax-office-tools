@@ -1,3 +1,35 @@
+# 테스트 결과 (2026-11-27 KST)
+
+## R-005 답변 단계
+
+브랜치: `cursor/chatbot-stage3-efc5`. 검색 단계(기준값 0.45·RRF)는 유지.
+
+S3-1 단독 호출 (2026-11-27):
+- `qwen3.5:2b` + `think: false`: HTTP 200. `think`를 빼면 content가 비고 thinking만 채워짐(길이 제한으로 잘림). 생각 모드를 꺼야 함.
+- `exaone3.5:2.4b`: `think: false` 없이도 200. `think: false`를 넣어도 오류 없음(무시). JSON에 answerable을 씀.
+
+조정 내역: 시스템 문장에 JSON 키를 `answerable`/`articles`/`answer`만 쓰도록 고정. 온도 0.1, `num_ctx` 2048, `keep_alive` 10m, 시간 제한 30초. 평가로 한 번 더 바꾸지는 않음.
+
+| 모델 | 범위 밖 거절 | 범위 안 상위3 중 잘못 거절 | 근거 검사 탈락 | 한글 수량 기록 | 응답 중앙값 | 최대 |
+| --- | --- | --- | --- | --- | --- | --- |
+| qwen3.5:2b | **2/4** | **0/26** | 1 | 1 | 14496ms | 28653ms |
+| exaone3.5:2.4b | **4/4** | **6/26** | 0 | 0 | 12189ms | 24602ms |
+
+3단계 기준(4/4 거절 **그리고** 잘못 거절 ≤2)을 동시에 만족하는 모델 **없음**. 기준을 낮추지 않음. 기본값 **qwen3.5:2b**(Apache 2.0, 잘못 거절 0, NC 아님). 범위 밖 2/4는 미달로 기록.
+
+`npm test` 45 pass. `npm run build` 성공.
+
+| 항목 | 결과 |
+| --- | --- |
+| 실행 | 2026-11-27 KST, `npm test` (`node --import tsx --test --test-concurrency=1 tests/*.test.ts`) |
+| 브랜치 | `cursor/chatbot-stage3-efc5` |
+| suites | 10 |
+| **pass** | **45** |
+| **fail** | **0** |
+| skipped / cancelled / todo | 0 / 0 / 0 |
+| 소요 | 81459ms |
+| 미검증 | 상용 URL·브라우저 E2E; 실 Ollama·`eval-chat`·S3-1 모델 벤치(위 표); `npm run build` 본 회차 미실행 |
+
 # 테스트 결과 (2026-11-26 KST)
 
 ## R-004 검수용 질문 (holdout, 1회)

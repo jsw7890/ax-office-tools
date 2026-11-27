@@ -2,7 +2,9 @@ import { getDb } from "@/lib/bootstrap";
 import { refuseUnapprovedModel, type ProvidedChunk } from "@/lib/chat/answer";
 import { handleOfficeQuestion } from "@/lib/chat/office";
 import { hybridSearch } from "@/lib/chat/search";
-import { localLlmModel, polishWithLocalLlm, probeLocalLlm, type LocalLlmStatus } from "@/lib/chat/ollama";
+import { NOT_FOUND_ANSWER } from "@/lib/chat/answer";
+import { buildEvidenceText } from "@/lib/chat/evidence";
+import { answerWithLocalLlm, localLlmModel, probeLocalLlm, type LocalLlmStatus } from "@/lib/chat/ollama";
 import { AppError, mapDbError } from "@/lib/errors";
 import { asDateOnly } from "@/lib/time";
 import { requiredText } from "@/lib/validate";
@@ -79,29 +81,39 @@ export async function askQuestion(userId: string, questionInput: unknown) {
     const { draft, searchMode } = await hybridSearch(db, userId, question, chunks);
     const status = await chatLlmStatus();
     status.searchMode = searchMode;
-    const polished = status.available ? await polishWithLocalLlm(question, draft, status.model) : null;
-    const answer = polished ?? draft.answer;
-    if (!polished) {
+    const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색";
+    let answer = draft.answer;
+    let suggestHelpdesk = draft.suggestHelpdesk;
+    let stage: Awaited<ReturnType<typeof answerWithLocalLlm>> = null;
+    if (status.available && draft.citations.length > 0) {
+      const evidence = await buildEvidenceText(db, userId, question, draft.citations, chunks);
+      stage = await answerWithLocalLlm(question, draft, evidence, status.model);
+    }
+    if (!stage) {
       status.used = false;
       status.mode = searchMode === "hybrid" ? "hybrid" : "article_search";
-      const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색(조문 검색)";
       if (status.available && draft.citations.length > 0) {
-        status.detail = `로컬 LLM(${status.model})이 이번 답을 만들지 못해 ${searchLabel}으로 답했습니다. 꺼져 있으면 ${searchLabel}으로 답합니다.`;
+        status.detail = `답변 모델 ${status.model}이 이번 답을 만들지 못해 ${searchLabel}으로 답했습니다.`;
       } else if (draft.citations.length > 0) {
-        status.detail =
-          searchMode === "hybrid"
-            ? "혼합 검색(벡터+키워드)으로 답했습니다. 로컬 LLM이 꺼져 있으면 검색 결과만 보여 줍니다."
-            : "키워드 검색(조문 검색)으로 답했습니다. 임베딩이 없거나 Ollama가 꺼져 있으면 키워드 검색으로 답합니다.";
+        status.detail = `${searchLabel}으로 답했습니다. 답변 모델이 꺼져 있으면 검색 결과만 보여 줍니다.`;
       } else {
-        status.detail =
-          searchMode === "hybrid"
-            ? "혼합 검색으로 답했습니다."
-            : "키워드 검색(조문 검색)으로 답했습니다. 꺼져 있으면 조문 검색으로 답합니다.";
+        status.detail = `${searchLabel}으로 답했습니다.`;
       }
-    } else {
+    } else if (stage.kind === "reject") {
+      answer = NOT_FOUND_ANSWER;
+      suggestHelpdesk = true;
+      status.used = true;
       status.mode = "local_llm";
-      const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색";
-      status.detail = `로컬 LLM 사용 중 (${status.model}). 근거는 ${searchLabel}으로 고른 조문입니다.`;
+      status.detail = `답변 모델 ${status.model} · ${searchLabel}`;
+    } else if (stage.kind === "discard") {
+      status.used = false;
+      status.mode = searchMode === "hybrid" ? "hybrid" : "article_search";
+      status.detail = "모델 답이 조문과 맞지 않아 조문만 보여 줍니다";
+    } else {
+      answer = stage.text;
+      status.used = true;
+      status.mode = "local_llm";
+      status.detail = `답변 모델 ${status.model} · ${searchLabel}`;
     }
     const cited = draft.citations.map((citation) => citation.chunkId).join(",");
     const saved = await db.withUser(userId, (sql) =>
@@ -117,7 +129,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
       question,
       answer,
       citations: draft.citations,
-      suggestHelpdesk: draft.suggestHelpdesk,
+      suggestHelpdesk,
       pendingActions: [],
       llm: status,
     };
