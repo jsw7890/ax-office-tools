@@ -91,7 +91,7 @@ export async function embedQuestion(question: string, model = embedModelName()):
   return vectors?.[0] ?? null;
 }
 
-export type HybridSearchOutcome = { draft: DraftAnswer; searchMode: SearchMode };
+export type HybridSearchOutcome = { draft: DraftAnswer; searchMode: SearchMode; questionVector?: number[] };
 
 export async function hybridSearch(
   db: OfficeDatabase,
@@ -151,10 +151,10 @@ export async function runHybridWithVector(
     const keywordAnswered = answerFromChunks(question, chunks).citations.length > 0;
 
     if (filtered.length === 0 || (!keywordAnswered && topSimilarity < SIMILARITY_THRESHOLD)) {
-      return { draft: rejectHybrid(question), searchMode: "hybrid" };
+      return { draft: rejectHybrid(question), searchMode: "hybrid", questionVector };
     }
 
-    return { draft: draftFromChunks(question, filtered), searchMode: "hybrid" };
+    return { draft: draftFromChunks(question, filtered), searchMode: "hybrid", questionVector };
   } catch (error) {
     console.error("hybrid search failed", error);
     return { draft: answerFromChunks(question, chunks), searchMode: "keyword" };

@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { answerFromChunks, NOT_FOUND_ANSWER, OFF_TOPIC_ANSWER, type DraftAnswer, type ProvidedChunk } from "../src/lib/chat/answer";
 import { parseOfficeIntent } from "../src/lib/chat/intent";
 import { buildEvidenceText } from "../src/lib/chat/evidence";
-import { answerWithLocalLlm, embedModelName, embedTexts } from "../src/lib/chat/ollama";
+import { ANSWER_NUM_CTX, answerWithLocalLlm, embedModelName, embedTexts } from "../src/lib/chat/ollama";
 import { runHybridWithVector, SIMILARITY_THRESHOLD } from "../src/lib/chat/search";
 import { getDb } from "../src/lib/bootstrap";
 
@@ -111,6 +111,7 @@ console.log(`키워드 오분류 함정 업무 분류: ${keywordTrapMisroute}/3`
 const STAFF_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const hybridCited = new Map<string, string[]>();
 const hybridDrafts = new Map<string, DraftAnswer>();
+const hybridVectors = new Map<string, number[]>();
 
 async function runHybridEval() {
   const model = embedModelName();
@@ -180,6 +181,7 @@ async function runHybridEval() {
       cited = outcome.draft.citations.map((c) => c.articleNo).slice(0, 3);
       hybridCited.set(item.id, cited);
       hybridDrafts.set(item.id, outcome.draft);
+      hybridVectors.set(item.id, vector);
       const rejected = cited.length === 0;
       verdict = scoreCited(item, cited, rejected);
       if (item.type === "일상어" && hitTop3(item, cited)) dailyTop3 += 1;
@@ -226,6 +228,7 @@ async function runAnswerEval(
   let discarded = 0;
   let hangul = 0;
   const times: number[] = [];
+  const promptCounts: number[] = [];
   for (const item of questions) {
     const cited = hybridCited.get(item.id) ?? [];
     const inTop3 = hitTop3(item, cited);
@@ -237,10 +240,11 @@ async function runAnswerEval(
       console.log([item.id, "검색만", "-", 0, ""].join(" | "));
       continue;
     }
-    const evidence = await buildEvidenceText(db, STAFF_ID, item.q, draft.citations, dbChunks);
+    const evidence = await buildEvidenceText(db, STAFF_ID, draft.citations, dbChunks, hybridVectors.get(item.id));
     const stage = await answerWithLocalLlm(item.q, draft, evidence, model);
     const elapsed = stage?.elapsedMs ?? 0;
     times.push(elapsed);
+    if (stage?.promptEvalCount) promptCounts.push(stage.promptEvalCount);
     if (stage?.hangulQuantity) hangul += 1;
     let verdict = "검색만";
     if (!stage) {
@@ -257,7 +261,14 @@ async function runAnswerEval(
     }
     const preview = (stage?.kind === "model" ? stage.text : stage?.kind === "reject" ? NOT_FOUND_ANSWER : draft.answer).slice(0, 80);
     console.log(
-      [item.id, verdict, (stage?.articles ?? cited).join(",") || "-", `${elapsed}ms`, preview.replace(/\s+/g, " ")].join(" | "),
+      [
+        item.id,
+        verdict,
+        (stage?.articles ?? cited).join(",") || "-",
+        `${elapsed}ms`,
+        `pe=${stage?.promptEvalCount ?? 0}`,
+        preview.replace(/\s+/g, " "),
+      ].join(" | "),
     );
   }
   const inScope = questions.filter((q) => q.type !== "범위 밖" && hitTop3(q, hybridCited.get(q.id) ?? [])).length;
@@ -271,6 +282,12 @@ async function runAnswerEval(
         근거검사탈락: discarded,
         한글수량기록: hangul,
         응답시간ms: { 중앙값: median(times), 최대: times.reduce((a, b) => Math.max(a, b), 0) },
+        prompt_eval_count: {
+          중앙값: median(promptCounts),
+          최대: promptCounts.reduce((a, b) => Math.max(a, b), 0),
+          문항: promptCounts.length,
+        },
+        num_ctx: ANSWER_NUM_CTX,
       },
       null,
       2,

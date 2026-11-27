@@ -5,8 +5,9 @@ import { asDateOnly } from "@/lib/time";
 export const DEFAULT_OLLAMA_MODEL = "qwen3.5:2b";
 export const DEFAULT_EMBED_MODEL = "bge-m3";
 export const ANSWER_TIMEOUT_MS = 30_000;
+export const ANSWER_NUM_CTX = Number(process.env.ANSWER_NUM_CTX) || 4096;
 export const ANSWER_SYSTEM =
-  '너는 사내 규정 안내 도우미다. 아래 근거 조문만 보고 판단한다. 반드시 키 answerable, articles, answer만 있는 JSON 한 개만 출력한다. 질문의 답이 조문에 있으면 "answerable":true 와 쉬운 한국어 2~4문장 "answer", 쓴 조문 번호만 "articles"에 넣는다. 답이 조문에 없거나 다른 법·최저임금·육아휴직·실업급여·회사 내부 규정을 물으면 "answerable":false 이고 "answer"는 "" 이다. 조문에 없는 숫자·예외·조항을 만들지 않는다.';
+  '너는 사내 규정 안내 도우미다. 아래 근거 조문만 보고 판단한다. 반드시 키 answerable, articles, answer만 있는 JSON 한 개만 출력한다. 질문의 답이 조문에 있으면 "answerable":true 와 쉬운 한국어 2~4문장 "answer", 쓴 조문 번호만 "articles"에 넣는다. 근거 조문에 답이 없으면 "answerable":false 이고 "answer"는 "" 이다. 조문에 없는 숫자·예외·조항을 만들지 않는다.';
 
 export type AnswerStageKind = "model" | "reject" | "discard";
 
@@ -16,6 +17,7 @@ export type AnswerStageResult = {
   articles: string[];
   elapsedMs: number;
   hangulQuantity: boolean;
+  promptEvalCount: number;
 };
 
 export type SearchMode = "hybrid" | "keyword";
@@ -162,7 +164,7 @@ export async function answerWithLocalLlm(
     stream: false,
     format: "json",
     keep_alive: "10m",
-    options: { temperature: 0.1, num_ctx: 2048, num_predict: 280 },
+    options: { temperature: 0.1, num_ctx: ANSWER_NUM_CTX, num_predict: 280 },
     messages: [
       { role: "system", content: ANSWER_SYSTEM },
       {
@@ -189,7 +191,9 @@ export async function answerWithLocalLlm(
   const payload = (await response.json().catch(() => null)) as {
     message?: { content?: string };
     error?: string;
+    prompt_eval_count?: number;
   } | null;
+  const promptEvalCount = Number(payload?.prompt_eval_count ?? 0);
   if (payload?.error) {
     console.error("ollama chat error", payload.error);
     return null;
@@ -200,13 +204,13 @@ export async function answerWithLocalLlm(
     parsed = parseAnswerJson(raw);
   } catch {
     console.error("ollama chat json");
-    return { kind: "discard", text: draft.answer, articles: [], elapsedMs, hangulQuantity: false };
+    return { kind: "discard", text: draft.answer, articles: [], elapsedMs, hangulQuantity: false, promptEvalCount };
   }
   if (!parsed) {
-    return { kind: "discard", text: draft.answer, articles: [], elapsedMs, hangulQuantity: false };
+    return { kind: "discard", text: draft.answer, articles: [], elapsedMs, hangulQuantity: false, promptEvalCount };
   }
   if (!parsed.answerable || !articlesAllowed(parsed.articles, allowed)) {
-    return { kind: "reject", text: "", articles: parsed.articles, elapsedMs, hangulQuantity: false };
+    return { kind: "reject", text: "", articles: parsed.articles, elapsedMs, hangulQuantity: false, promptEvalCount };
   }
   const hangulQuantity = containsHangulQuantity(parsed.answer);
   if (hangulQuantity) {
@@ -214,7 +218,7 @@ export async function answerWithLocalLlm(
   }
   if (!answerIsGrounded(parsed.answer, evidence) || hangulQuantity) {
     console.error("ollama chat ungrounded");
-    return { kind: "discard", text: draft.answer, articles: parsed.articles, elapsedMs, hangulQuantity };
+    return { kind: "discard", text: draft.answer, articles: parsed.articles, elapsedMs, hangulQuantity, promptEvalCount };
   }
   return {
     kind: "model",
@@ -222,6 +226,7 @@ export async function answerWithLocalLlm(
     articles: parsed.articles,
     elapsedMs,
     hangulQuantity: false,
+    promptEvalCount,
   };
 }
 

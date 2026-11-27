@@ -78,7 +78,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
       baseDate: asDateOnly(row.base_date),
       sourceUrl: String(row.source_url),
     }));
-    const { draft, searchMode } = await hybridSearch(db, userId, question, chunks);
+    const { draft, searchMode, questionVector } = await hybridSearch(db, userId, question, chunks);
     const status = await chatLlmStatus();
     status.searchMode = searchMode;
     const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색";
@@ -86,7 +86,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
     let suggestHelpdesk = draft.suggestHelpdesk;
     let stage: Awaited<ReturnType<typeof answerWithLocalLlm>> = null;
     if (status.available && draft.citations.length > 0) {
-      const evidence = await buildEvidenceText(db, userId, question, draft.citations, chunks);
+      const evidence = await buildEvidenceText(db, userId, draft.citations, chunks, questionVector);
       stage = await answerWithLocalLlm(question, draft, evidence, status.model);
     }
     if (!stage) {

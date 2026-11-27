@@ -1,5 +1,5 @@
 import type { Citation, ProvidedChunk } from "@/lib/chat/answer";
-import { embedModelName, embedTexts } from "@/lib/chat/ollama";
+import { embedModelName } from "@/lib/chat/ollama";
 import type { OfficeDatabase } from "@/lib/db";
 
 const PER_ARTICLE = 1_200;
@@ -54,9 +54,9 @@ async function nearestParts(
 export async function buildEvidenceText(
   db: OfficeDatabase,
   userId: string,
-  question: string,
   citations: Citation[],
   chunks: ProvidedChunk[],
+  questionVector?: number[] | null,
 ): Promise<string> {
   const picked = citations
     .map((citation) => chunks.find((chunk) => chunk.id === citation.chunkId))
@@ -65,7 +65,7 @@ export async function buildEvidenceText(
   if (picked.length === 0) return "";
 
   const model = embedModelName();
-  const vector = (await embedTexts(model, [question], 10_000))?.[0] ?? null;
+  const vector = questionVector && questionVector.length > 0 ? questionVector : null;
   const blocks: string[] = [];
   let used = 0;
   for (const chunk of picked) {
