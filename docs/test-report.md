@@ -1,5 +1,15 @@
 # 테스트 결과 (2026-11-27 KST)
 
+## R-005 검수용 질문 (holdout, 1회)
+
+명령: `npx tsx scripts/eval-chat.ts docs/handoff/requests/R-005-holdout_Claude.json --model qwen3.5:2b` (2026-11-27 13:16 KST). 코드·0.45·RRF·기본 모델 미변경. 전문은 `docs/handoff/requests/R-005-holdout-run.txt`와 R-005 'Cursor 검수용 실행 답변'.
+
+| 구분 | 범위 밖 거절 (답변 단계) | 범위 안 상위3 | 잘못 거절 | 중앙값 | 최대 |
+| --- | --- | --- | --- | --- | --- |
+| qwen3.5:2b | **3/6** | 3 | 0/3 | 12205ms | 22743ms |
+
+미리 정한 기준(Y 5/6 이상 거절, Z 전부 답·숫자 일치) 채점은 Claude. Cursor 기록: Y 거절 3/6. Z01 답에 3년. Z03 답에 45일 없음. Z04 거절.
+
 ## R-005 답변 단계
 
 브랜치: `cursor/chatbot-stage3-efc5`. 검색 단계(기준값 0.45·RRF)는 유지.
