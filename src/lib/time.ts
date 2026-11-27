@@ -42,10 +42,22 @@ export function seoulParts(value: string | Date): { date: string; minutes: numbe
   };
 }
 
+function isDateObject(value: unknown): value is Date {
+  return (
+    Object.prototype.toString.call(value) === "[object Date]" &&
+    typeof (value as Date).getTime === "function" &&
+    !Number.isNaN((value as Date).getTime())
+  );
+}
+
 export function asDateOnly(value: unknown): string {
   if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}/.test(value)) return value.slice(0, 10);
-  if (value instanceof Date) return seoulParts(value).date;
-  return String(value).slice(0, 10);
+  if (isDateObject(value)) return seoulParts(new Date(value.getTime())).date;
+  if (typeof value === "string") {
+    const parsed = new Date(value);
+    if (!Number.isNaN(parsed.getTime())) return seoulParts(parsed).date;
+  }
+  return String(value ?? "").slice(0, 10);
 }
 
 export function clock(minutes: number): string {

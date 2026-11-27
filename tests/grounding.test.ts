@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import { describe, test } from "node:test";
+import { attachCitation, orderCitationsByArticles } from "../src/lib/chat/ollama";
 import { answerIsGrounded, articlesAllowed, extractNumberUnits } from "../src/lib/chat/grounding";
+import type { DraftAnswer } from "../src/lib/chat/answer";
 
 describe("숫자+단위 근거 검사", () => {
   const leave = "연차 유급휴가는 15일이다. 1년 동안 80퍼센트 이상 출근한 근로자.";
@@ -30,5 +32,35 @@ describe("숫자+단위 근거 검사", () => {
       { number: "1", unit: "주" },
       { number: "15", unit: "일" },
     ]);
+  });
+
+  test("검색 1위와 모델 조문이 다르면 출처는 모델 조문이다", () => {
+    const draft: DraftAnswer = {
+      answer: "검색 초안",
+      suggestHelpdesk: false,
+      citations: [
+        {
+          chunkId: "1",
+          docTitle: "근로기준법",
+          articleNo: "제67조",
+          heading: "미성년자",
+          baseDate: "Thu Oct 08 2026 09:00:00 GMT+0900",
+          sourceUrl: "https://example.com",
+        },
+        {
+          chunkId: "2",
+          docTitle: "근로기준법",
+          articleNo: "제42조",
+          heading: "계약 서류",
+          baseDate: "2026-10-08",
+          sourceUrl: "https://example.com",
+        },
+      ],
+    };
+    const text = attachCitation("사용자는 중요한 서류를 3년간 보존해야 합니다.", draft, ["제42조"]);
+    assert.match(text, /출처: 근로기준법 제42조 \(기준일 2026-10-08\)/);
+    assert.doesNotMatch(text, /제67조/);
+    assert.doesNotMatch(text, /Thu Oct 08/);
+    assert.equal(orderCitationsByArticles(draft.citations, ["제42조"])[0]?.articleNo, "제42조");
   });
 });

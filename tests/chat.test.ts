@@ -140,6 +140,8 @@ describe("규정 챗봇", { concurrency: 1 }, () => {
       assert.match(result.answer, /2026-10-08/);
       assert.equal(result.citations[0]?.articleNo, "제50조");
       assert.equal(result.citations.length, 1);
+      assert.match(result.answer, /출처: 근로기준법 제50조 \(기준일 2026-10-08\)/);
+      assert.doesNotMatch(result.answer, /Thu Oct 08/);
     } finally {
       globalThis.fetch = original;
       process.env.LLM_PROVIDER = "mock";

@@ -1,4 +1,4 @@
-import type { DraftAnswer } from "@/lib/chat/answer";
+import type { Citation, DraftAnswer } from "@/lib/chat/answer";
 import { answerIsGrounded, articlesAllowed, containsHangulQuantity, normalizeArticleNo } from "@/lib/chat/grounding";
 import { asDateOnly } from "@/lib/time";
 
@@ -127,12 +127,36 @@ export async function probeLocalLlm(): Promise<LocalLlmStatus> {
   };
 }
 
-export function attachCitation(text: string, draft: DraftAnswer): string {
-  const primary = draft.citations[0];
-  if (!primary) return text;
-  const stamp = `출처: ${primary.docTitle} ${primary.articleNo} (기준일 ${asDateOnly(primary.baseDate)})`;
-  if (text.includes(primary.articleNo) && text.includes(primary.baseDate)) return text;
-  return `${text.trim()}\n\n${stamp}`;
+export function orderCitationsByArticles(citations: Citation[], articles: string[]): Citation[] {
+  if (articles.length === 0) return citations;
+  const picked: Citation[] = [];
+  const seen = new Set<string>();
+  for (const articleNo of articles) {
+    const hit = citations.find((item) => item.articleNo === articleNo);
+    if (hit && !seen.has(hit.chunkId)) {
+      picked.push(hit);
+      seen.add(hit.chunkId);
+    }
+  }
+  for (const item of citations) {
+    if (!seen.has(item.chunkId)) {
+      picked.push(item);
+      seen.add(item.chunkId);
+    }
+  }
+  return picked;
+}
+
+export function attachCitation(text: string, draft: DraftAnswer, articleNos?: string[]): string {
+  const wanted = (articleNos ?? []).filter(Boolean);
+  const ordered = orderCitationsByArticles(draft.citations, wanted);
+  const used = wanted.length > 0 ? ordered.filter((item) => wanted.includes(item.articleNo)) : ordered.slice(0, 1);
+  if (used.length === 0) return text;
+  const stamps = used.map(
+    (item) => `출처: ${item.docTitle} ${item.articleNo} (기준일 ${asDateOnly(item.baseDate)})`,
+  );
+  if (stamps.every((stamp) => text.includes(stamp))) return text;
+  return `${text.trim()}\n\n${stamps.join("\n")}`;
 }
 
 function usesThinkOption(model: string): boolean {
@@ -222,7 +246,7 @@ export async function answerWithLocalLlm(
   }
   return {
     kind: "model",
-    text: attachCitation(parsed.answer, draft),
+    text: attachCitation(parsed.answer, draft, parsed.articles),
     articles: parsed.articles,
     elapsedMs,
     hangulQuantity: false,

@@ -4,7 +4,13 @@ import { handleOfficeQuestion } from "@/lib/chat/office";
 import { hybridSearch } from "@/lib/chat/search";
 import { NOT_FOUND_ANSWER } from "@/lib/chat/answer";
 import { buildEvidenceText } from "@/lib/chat/evidence";
-import { answerWithLocalLlm, localLlmModel, probeLocalLlm, type LocalLlmStatus } from "@/lib/chat/ollama";
+import {
+  answerWithLocalLlm,
+  localLlmModel,
+  orderCitationsByArticles,
+  probeLocalLlm,
+  type LocalLlmStatus,
+} from "@/lib/chat/ollama";
 import { AppError, mapDbError } from "@/lib/errors";
 import { asDateOnly } from "@/lib/time";
 import { requiredText } from "@/lib/validate";
@@ -84,6 +90,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
     const searchLabel = searchMode === "hybrid" ? "혼합 검색" : "키워드 검색";
     let answer = draft.answer;
     let suggestHelpdesk = draft.suggestHelpdesk;
+    let citations = draft.citations;
     let stage: Awaited<ReturnType<typeof answerWithLocalLlm>> = null;
     if (status.available && draft.citations.length > 0) {
       const evidence = await buildEvidenceText(db, userId, draft.citations, chunks, questionVector);
@@ -111,11 +118,12 @@ export async function askQuestion(userId: string, questionInput: unknown) {
       status.detail = "모델 답이 조문과 맞지 않아 조문만 보여 줍니다";
     } else {
       answer = stage.text;
+      citations = orderCitationsByArticles(draft.citations, stage.articles);
       status.used = true;
       status.mode = "local_llm";
       status.detail = `답변 모델 ${status.model} · ${searchLabel}`;
     }
-    const cited = draft.citations.map((citation) => citation.chunkId).join(",");
+    const cited = citations.map((citation) => citation.chunkId).join(",");
     const saved = await db.withUser(userId, (sql) =>
       sql(
         `insert into chat_logs (user_id, question, answer, cited_chunk_ids)
@@ -128,7 +136,7 @@ export async function askQuestion(userId: string, questionInput: unknown) {
       id: String(saved[0]?.id),
       question,
       answer,
-      citations: draft.citations,
+      citations,
       suggestHelpdesk,
       pendingActions: [],
       llm: status,
